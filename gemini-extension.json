@@ -1,0 +1,6 @@
+{
+  "name": "maestro",
+  "version": "1.0.0",
+  "description": "Multi-agent orchestration extension that assembles specialized dev teams for complex engineering tasks",
+  "contextFileName": "GEMINI.md"
+}
