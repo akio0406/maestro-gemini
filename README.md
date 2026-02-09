@@ -38,14 +38,14 @@ The `settings.json` file is located at:
 ### From Git Repository
 
 ```bash
-gemini extensions install <repository-url>
+gemini extensions install https://github.com/josstei/maestro-gemini
 ```
 
 ### Local Development
 
 ```bash
-git clone <repository-url>
-cd gemini-maestro
+git clone https://github.com/josstei/maestro-gemini
+cd maestro-gemini
 gemini extensions link maestro/
 ```
 
