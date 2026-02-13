@@ -51,11 +51,30 @@ Verify all deliverables. Run final validation. Archive session state. Present su
 
 ## Execution Mode
 
-**Current mode: SEQUENTIAL**
+**Current mode: PARALLEL (shell-based)**
 
-All phases execute one at a time through the standard delegation flow. The delegation and execution skills describe parallel dispatch patterns (non-overlapping file ownership, batch completion gates), but the underlying Gemini CLI does not yet support concurrent subagent invocation (tracked in Gemini CLI Issue #17749).
+Parallel execution uses `scripts/parallel-dispatch.sh` to spawn independent `gemini` CLI processes that run concurrently. This bypasses the sequential `delegate_to_agent` tool scheduler (which processes one tool call at a time due to `CoreToolScheduler` queue design).
 
-When parallel execution becomes available (via validated workaround or native CLI support), update this section and activate parallel dispatch in the execution skill for independent phases at the same dependency depth.
+**How it works:**
+1. The orchestrator writes delegation prompts to `<state_dir>/parallel/<batch-id>/prompts/`
+2. Invokes `./scripts/parallel-dispatch.sh <dispatch-dir>` via `run_shell_command`
+3. The script spawns one `gemini -p <prompt> --yolo --output-format json` process per prompt file
+4. All agents execute concurrently as independent processes
+5. The script collects results to `<dispatch-dir>/results/` and writes `summary.json`
+6. The orchestrator reads results and updates session state
+
+**When to use parallel dispatch:**
+- Phases at the same dependency depth with non-overlapping file ownership
+- Phases that are fully self-contained (no follow-up questions needed)
+- Batch size of 2-4 agents (avoid overwhelming the system)
+
+**When to use sequential `delegate_to_agent`:**
+- Phases with shared file dependencies
+- Phases that may need interactive clarification
+- Single-phase execution (no benefit from parallelism)
+- Fallback when parallel dispatch fails
+
+**Constraint:** Parallel agents run as independent CLI processes with no shared context. Prompts must be complete and self-contained. See the execution skill for the full Parallel Dispatch Protocol.
 
 ## Delegation Override Protocol
 

@@ -23,19 +23,41 @@ For phases with dependencies (`blocked_by` is non-empty):
 
 ### Parallel Execution
 
-**Execution Mode Gate**: Parallel execution requires Gemini CLI support for concurrent subagent invocation. Check the orchestrator's Execution Mode declaration in `GEMINI.md`. If the mode is `SEQUENTIAL`, execute all phases sequentially regardless of parallelization markers in the implementation plan. Record that parallel-eligible phases were executed sequentially in session state.
+For phases at the same dependency depth with no file overlap, use shell-based parallel dispatch via `scripts/parallel-dispatch.sh`. This spawns independent `gemini` CLI processes that execute concurrently, bypassing the sequential `delegate_to_agent` tool scheduler.
 
-When the mode is `PARALLEL`:
-
-For phases at the same dependency depth with no file overlap:
+#### Parallel Dispatch Protocol
 
 1. Verify all blocking phases for every phase in the batch are completed
-2. Update all batch phases to `in_progress` simultaneously
-3. Invoke all assigned agents concurrently in a single message
-4. Wait for all agents in the batch to complete
-5. Process all Task Reports
-6. Update session state for all phases in the batch
-7. Only proceed to the next batch when all phases in the current batch are completed
+2. Update all batch phases to `in_progress` simultaneously in session state
+3. Create the dispatch directory structure:
+   ```
+   <state_dir>/parallel/<batch-id>/prompts/phase-<N>.txt   (one per agent)
+   ```
+4. Write each agent's full delegation prompt (including injected base protocol, context chain, and downstream consumer declaration) to its prompt file
+5. Invoke the parallel dispatch script via `run_shell_command`:
+   ```bash
+   ./scripts/parallel-dispatch.sh <state_dir>/parallel/<batch-id>
+   ```
+6. The script spawns one `gemini -p <prompt> --yolo --output-format json` process per prompt file
+7. All agents execute concurrently as independent CLI processes
+8. The script waits for all agents, collects exit codes, and writes `results/summary.json`
+9. Read the batch summary from `<state_dir>/parallel/<batch-id>/results/summary.json`
+10. For each agent, read its JSON output from `results/<agent-name>.json` and parse the Task Report
+11. Update session state for all phases in the batch
+12. Only proceed to the next batch when all phases in the current batch are completed
+
+#### Parallel Dispatch Constraints
+
+- Each agent runs as an **independent `gemini` process** — no shared memory or conversation context between parallel agents
+- Agents inherit the project directory and linked extensions, but do NOT share the orchestrator's session
+- The orchestrator must write complete, self-contained prompts — parallel agents cannot ask follow-up questions
+- File ownership must be strictly non-overlapping — the dispatch script provides no file locking
+- `MAESTRO_DEFAULT_MODEL` and `MAESTRO_AGENT_TIMEOUT` environment variables are respected by the dispatch script
+- If any agent in the batch fails, the summary reports `partial_failure` — the orchestrator decides whether to retry or escalate
+
+#### Fallback to Sequential
+
+If parallel dispatch fails (script not found, `gemini` CLI not available in PATH, or all agents fail), fall back to sequential execution via `delegate_to_agent` and record the fallback in session state.
 
 ### Progress Context
 

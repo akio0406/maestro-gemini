@@ -148,22 +148,66 @@ Explicitly state what the agent must NOT do:
 
 ## Parallel Delegation
 
+Parallel delegation uses `scripts/parallel-dispatch.sh` to spawn independent `gemini` CLI processes. Instead of calling `delegate_to_agent` (which is sequential), the orchestrator writes prompt files to disk and invokes the dispatch script.
+
+### Prompt File Construction
+
+For each agent in a parallel batch, write a complete prompt file to `<state_dir>/parallel/<batch-id>/prompts/<agent-name>.txt`:
+
+```
+[Injected base protocol from protocols/agent-base-protocol.md]
+
+Task: [One-line description]
+
+Progress: Phase [N] of [M]: [Phase Name] (parallel batch with [other agent names])
+
+Files to modify:
+- /absolute/path/to/file1.ext: [Specific change required]
+
+Files to create:
+- /absolute/path/to/new-file.ext: [Purpose and key contents]
+
+Context from completed phases:
+- Phase [N] ([agent]): [Downstream Context summary]
+
+Your output will be consumed by: [downstream agent name(s)]
+
+Deliverables:
+- [Concrete output 1]
+
+Validation: [command to run after completion]
+
+Do NOT:
+- Modify any files not listed above
+- Ask follow-up questions (you are running non-interactively)
+- Create git commits (the orchestrator handles commits after the batch)
+```
+
+Each prompt must be **fully self-contained** — the agent runs as an independent `gemini` process with no access to the orchestrator's conversation or session context.
+
+### Dispatch Invocation
+
+```bash
+./scripts/parallel-dispatch.sh <state_dir>/parallel/<batch-id>
+```
+
+The script handles spawning, waiting, timeout enforcement, and result collection. See `scripts/parallel-dispatch.sh` for the full implementation.
+
 ### Non-Overlapping File Ownership
 When delegating to multiple agents in parallel, ensure no two agents are assigned the same file. Each file must have exactly one owner in a parallel batch.
-
-### Single-Message Invocation
-Invoke all parallel agents in a single message to ensure true concurrent execution. Do not invoke them sequentially.
 
 ### Batch Completion Gates
 All agents in a parallel batch must complete before:
 - The next batch of phases begins
 - Shared/container files are updated
 - Validation checkpoints run
+- The orchestrator creates a git commit for the batch
 
 ### Conflict Prevention
 - Assign non-overlapping file sets to each agent
 - Reserve shared files (barrel exports, configuration, dependency manifests) for a single agent or a post-batch update step
 - If two phases must modify the same file, they cannot run in parallel — execute them sequentially
+- Parallel agents must NOT create git commits — the orchestrator commits after validating the batch
 
 ## Validation Criteria Templates
 
