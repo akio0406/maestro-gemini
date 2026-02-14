@@ -117,10 +117,16 @@ Add Startup Check #4 (Workspace Readiness) after the existing Startup Check #3 (
 
 ### `skills/delegation/SKILL.md`
 
-Add protocol injection step between reading `agent-base-protocol.md` and constructing the prompt:
+Replace the "Injection Steps" subsection (lines 14-18) with the following complete sequence:
+
+```markdown
+### Injection Steps
 1. Read `protocols/agent-base-protocol.md`
 2. Read `protocols/filesystem-safety-protocol.md`
-3. Prepend both protocols to the delegation prompt (base protocol first, then filesystem safety)
+3. Prepend both protocols to the delegation prompt (base protocol first, then filesystem safety) — these appear before the task-specific content
+4. For each phase listed in the current phase's `blocked_by`, read `phases[].downstream_context` from session state and include it in the prompt
+5. If any required `downstream_context` is missing, include an explicit placeholder noting the missing dependency context (never omit silently)
+```
 
 Single integration point — all delegation prompts (sequential and parallel) automatically include filesystem safety rules.
 
@@ -171,9 +177,9 @@ Several TOML command files reference hardcoded `.gemini/` paths that cannot be d
 **File injection (`@{...}` syntax) — resolved at compile-time by Gemini CLI:**
 - `commands/maestro.resume.toml` (line 9): `@{.gemini/state/active-session.md}`
 - `commands/maestro.status.toml` (line 7): `@{.gemini/state/active-session.md}`
-- `commands/maestro.archive.toml` (lines 9, 15-18): multiple `@{.gemini/...}` references
 
 **Procedural instructions with hardcoded paths:**
+- `commands/maestro.archive.toml` (lines 9, 15-18): multiple `.gemini/...` path references
 - `commands/maestro.orchestrate.toml` (line 8): `Check .gemini/state/ for any existing active sessions`
 - `commands/maestro.execute.toml` (line 11): `check .gemini/plans/ for the most recent implementation plan`
 
@@ -181,7 +187,7 @@ The `@{...}` syntax is resolved at compile-time by Gemini CLI before the prompt 
 
 ### Defense-in-Depth Timing Gap for File Injection Commands
 
-Commands that use `@{file-path}` syntax (`/maestro.resume`, `/maestro.status`, `/maestro.archive`) resolve file paths at compile-time, before any skill activates. This means the defense-in-depth `mkdir` instructions retained in session-management cannot execute before the file injection attempt.
+Commands that use `@{file-path}` syntax (`/maestro.resume`, `/maestro.status`) resolve file paths at compile-time, before any skill activates. This means the defense-in-depth `mkdir` instructions retained in session-management cannot execute before the file injection attempt.
 
 **Affected scenario:** If a user invokes `/maestro.resume` or `/maestro.status` in a project where `.gemini/state/` does not exist, the `@{.gemini/state/active-session.md}` injection will fail or inject empty content before the session-management skill has a chance to create the directory.
 
