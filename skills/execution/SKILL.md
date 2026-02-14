@@ -29,9 +29,9 @@ For phases at the same dependency depth with no file overlap, use shell-based pa
 
 1. Verify all blocking phases for every phase in the batch are completed
 2. Update all batch phases to `in_progress` simultaneously in session state
-3. Create the dispatch directory structure:
-   ```
-   <state_dir>/parallel/<batch-id>/prompts/phase-<N>.txt   (one per agent)
+3. Ensure the batch-specific dispatch directory exists before writing prompt files:
+   ```bash
+   mkdir -p <state_dir>/parallel/<batch-id>/prompts
    ```
 4. Write each agent's full delegation prompt (including injected base protocol, context chain, and downstream consumer declaration) to its prompt file
 5. Invoke the parallel dispatch script via `run_shell_command`:
