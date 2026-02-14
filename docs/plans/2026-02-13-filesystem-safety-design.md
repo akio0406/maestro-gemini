@@ -145,9 +145,10 @@ Files to modify: [...]
 
 **Defense-in-depth (belt and suspenders):** Retain the inline directory creation instructions as silent fallbacks rather than removing them. The workspace readiness startup check is the primary mechanism, but these inline instructions protect against bypass scenarios where session-management is activated directly by commands (`/maestro.resume`, `/maestro.archive`) without going through GEMINI.md startup checks.
 
-Changes:
-- Session Creation (line 29): Keep "Create `<state_dir>/state/` directory if it does not exist" — add note that this is a defense-in-depth fallback; the workspace readiness startup check is the primary mechanism
-- Archive Protocol (lines 167-168): Keep "Create `<state_dir>/plans/archive/` ... Create `<state_dir>/state/archive/` ..." — same defense-in-depth note
+Exact replacement text for each line:
+- Session Creation (line 29): `2. Create <state_dir>/state/ directory if it does not exist (defense-in-depth fallback — workspace readiness startup check is the primary mechanism)`
+- Archive Protocol (line 167): `1. Create <state_dir>/plans/archive/ directory if it does not exist (defense-in-depth fallback — workspace readiness startup check is the primary mechanism)`
+- Archive Protocol (line 168): `2. Create <state_dir>/state/archive/ directory if it does not exist (defense-in-depth fallback — workspace readiness startup check is the primary mechanism)`
 
 ### `skills/execution/SKILL.md`
 
