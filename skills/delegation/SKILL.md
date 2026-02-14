@@ -186,6 +186,31 @@ Do NOT:
 
 Each prompt must be **fully self-contained** — the agent runs as an independent `gemini` process with no access to the orchestrator's conversation or session context.
 
+### Tool Restriction Enforcement
+
+Parallel-dispatched agents run with `--yolo` (auto-approve all tool calls), which bypasses the tool permission model defined in agent frontmatter. To enforce least-privilege, every parallel dispatch prompt **must** include an explicit tool restriction block. The required prompt structure is:
+
+1. Agent Base Protocol (from `protocols/agent-base-protocol.md`)
+2. Filesystem Safety Protocol (from `protocols/filesystem-safety-protocol.md`)
+3. **TOOL RESTRICTIONS block (immediately here, before any task content)**
+4. Context chain from prior phases
+5. Task-specific instructions
+6. Scope boundaries and prohibitions
+
+The tool restriction block template:
+
+```
+TOOL RESTRICTIONS (MANDATORY):
+You are authorized to use ONLY the following tools: [list from agent frontmatter].
+Do NOT use any tools not listed above. Specifically:
+- Do NOT use write_file or replace unless explicitly authorized above
+- Do NOT use run_shell_command unless explicitly authorized above
+- Do NOT create, modify, or delete files unless authorized above
+Violation of these restrictions constitutes a security boundary breach.
+```
+
+Populate the tool list by reading the agent's definition file (`agents/<agent-name>.md`) and extracting the `tools` array from the YAML frontmatter. This is the only mechanism for enforcing tool permissions on parallel-dispatched agents until the Gemini CLI supports runtime tool restriction flags.
+
 ### Dispatch Invocation
 
 ```bash

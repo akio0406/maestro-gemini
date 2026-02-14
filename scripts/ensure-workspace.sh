@@ -3,6 +3,21 @@ set -euo pipefail
 
 STATE_DIR="${1:-.gemini}"
 
+if [[ "$STATE_DIR" == /* ]]; then
+  echo "ERROR: STATE_DIR must be a relative path within the project (got: $STATE_DIR)" >&2
+  exit 1
+fi
+
+if [[ "$STATE_DIR" == *".."* ]]; then
+  echo "ERROR: STATE_DIR must not contain path traversal components (got: $STATE_DIR)" >&2
+  exit 1
+fi
+
+if [[ -L "$STATE_DIR" ]]; then
+  echo "ERROR: STATE_DIR must not be a symlink (got: $STATE_DIR)" >&2
+  exit 1
+fi
+
 DIRS=(
   "${STATE_DIR}/state"
   "${STATE_DIR}/state/archive"

@@ -18,6 +18,7 @@ echo "placeholder" > "$TEST_DIR/src/file-b.txt"
 
 mkdir -p "$DISPATCH_DIR/prompts"
 
+# Single-quoted HEREDOC delimiter prevents $(date +%s) from expanding during file creation
 cat > "$DISPATCH_DIR/prompts/agent-a.txt" <<'PROMPT'
 You are Agent A in a parallel execution test.
 
@@ -33,6 +34,7 @@ Do NOT touch any other files. Only modify src/file-a.txt.
 When done, report: which file you modified and the content you wrote.
 PROMPT
 
+# Single-quoted HEREDOC delimiter prevents $(date +%s) from expanding during file creation
 cat > "$DISPATCH_DIR/prompts/agent-b.txt" <<'PROMPT'
 You are Agent B in a parallel execution test.
 

@@ -30,8 +30,9 @@ Results:
   <dispatch-dir>/results/summary.json    (batch summary)
 
 Environment:
-  MAESTRO_DEFAULT_MODEL   Override model for all agents
-  MAESTRO_AGENT_TIMEOUT   Timeout in minutes (default: 10)
+  MAESTRO_DEFAULT_MODEL      Override model for all agents
+  MAESTRO_AGENT_TIMEOUT      Timeout in minutes (default: 10)
+  MAESTRO_CLEANUP_DISPATCH   Remove prompt files after dispatch (default: false)
 EOF
   exit 1
 }
@@ -55,6 +56,15 @@ if [[ -n "${MAESTRO_DEFAULT_MODEL:-}" ]]; then
 fi
 
 TIMEOUT_MINS="${MAESTRO_AGENT_TIMEOUT:-10}"
+TIMEOUT_MINS="${TIMEOUT_MINS#"${TIMEOUT_MINS%%[!0]*}"}"
+[[ -z "$TIMEOUT_MINS" ]] && TIMEOUT_MINS=0
+if ! [[ "$TIMEOUT_MINS" =~ ^[0-9]+$ ]] || [[ "$TIMEOUT_MINS" -eq 0 ]]; then
+  echo "ERROR: MAESTRO_AGENT_TIMEOUT must be a positive integer (got: $TIMEOUT_MINS)" >&2
+  exit 1
+fi
+if [[ "$TIMEOUT_MINS" -gt 60 ]]; then
+  echo "WARNING: Agent timeout set to ${TIMEOUT_MINS} minutes (over 1 hour)" >&2
+fi
 TIMEOUT_SECS=$((TIMEOUT_MINS * 60))
 
 PIDS=()
@@ -69,17 +79,27 @@ echo "Model: ${MAESTRO_DEFAULT_MODEL:-default}"
 echo ""
 
 for PROMPT_FILE in "${PROMPT_FILES[@]}"; do
-  AGENT_NAME=$(basename "$PROMPT_FILE" .txt)
+  AGENT_NAME=$(basename "$PROMPT_FILE" .txt | tr -cd 'a-zA-Z0-9_-')
+  if [[ -z "$AGENT_NAME" ]]; then
+    echo "ERROR: Prompt file $(basename "$PROMPT_FILE" | tr -cd 'a-zA-Z0-9_.-') produces empty agent name after sanitization" >&2
+    exit 1
+  fi
   AGENT_NAMES+=("$AGENT_NAME")
 
   RESULT_JSON="$RESULT_DIR/${AGENT_NAME}.json"
   RESULT_EXIT="$RESULT_DIR/${AGENT_NAME}.exit"
   RESULT_LOG="$RESULT_DIR/${AGENT_NAME}.log"
 
+  PROMPT_SIZE=$(wc -c < "$PROMPT_FILE")
+  if [[ "$PROMPT_SIZE" -gt 1000000 ]]; then
+    echo "ERROR: Prompt file $AGENT_NAME exceeds 1MB size limit (${PROMPT_SIZE} bytes)" >&2
+    exit 1
+  fi
+
   PROMPT_CONTENT=$(cat "$PROMPT_FILE")
 
   if [[ -z "${PROMPT_CONTENT// /}" ]]; then
-    echo "ERROR: Prompt file $PROMPT_FILE is empty or whitespace-only"
+    echo "ERROR: Prompt file $AGENT_NAME is empty or whitespace-only" >&2
     exit 1
   fi
 
@@ -149,29 +169,37 @@ echo "  Succeeded: $(( ${#AGENT_NAMES[@]} - FAILURES ))"
 echo "  Failed: $FAILURES"
 echo "  Wall time: ${ELAPSED}s"
 
-cat > "$RESULT_DIR/summary.json" <<ENDJSON
-{
-  "batch_status": "$([ "$FAILURES" -eq 0 ] && echo "success" || echo "partial_failure")",
-  "total_agents": ${#AGENT_NAMES[@]},
-  "succeeded": $(( ${#AGENT_NAMES[@]} - FAILURES )),
-  "failed": $FAILURES,
-  "wall_time_seconds": $ELAPSED,
-  "agents": [
-$(for i in "${!AGENT_NAMES[@]}"; do
-    NAME=${AGENT_NAMES[$i]}
-    EXIT=$(cat "$RESULT_DIR/${NAME}.exit" 2>/dev/null || echo "255")
-    STATUS="success"
-    [[ "$EXIT" -eq 124 ]] && STATUS="timeout"
-    [[ "$EXIT" -ne 0 && "$EXIT" -ne 124 ]] && STATUS="failed"
-    COMMA=""
-    [[ $i -lt $(( ${#AGENT_NAMES[@]} - 1 )) ]] && COMMA=","
-    echo "    {\"name\": \"$NAME\", \"exit_code\": $EXIT, \"status\": \"$STATUS\"}$COMMA"
-done)
-  ]
-}
-ENDJSON
+BATCH_STATUS="success"
+[[ "$FAILURES" -ne 0 ]] && BATCH_STATUS="partial_failure"
+SUCCEEDED=$(( ${#AGENT_NAMES[@]} - FAILURES ))
+
+AGENTS_JSON="["
+for i in "${!AGENT_NAMES[@]}"; do
+  NAME=${AGENT_NAMES[$i]}
+  EXIT=$(cat "$RESULT_DIR/${NAME}.exit" 2>/dev/null | tr -cd '0-9')
+  [[ -z "$EXIT" ]] && EXIT=255
+  STATUS="success"
+  [[ "$EXIT" -eq 124 ]] && STATUS="timeout"
+  [[ "$EXIT" -ne 0 && "$EXIT" -ne 124 ]] && STATUS="failed"
+  [[ $i -gt 0 ]] && AGENTS_JSON+=","
+  AGENTS_JSON+="{\"name\":\"$NAME\",\"exit_code\":$EXIT,\"status\":\"$STATUS\"}"
+done
+AGENTS_JSON+="]"
+
+printf '{"batch_status":"%s","total_agents":%d,"succeeded":%d,"failed":%d,"wall_time_seconds":%d,"agents":%s}\n' \
+  "$BATCH_STATUS" "${#AGENT_NAMES[@]}" "$SUCCEEDED" "$FAILURES" "$ELAPSED" "$AGENTS_JSON" \
+  > "$RESULT_DIR/summary.json"
 
 echo ""
 echo "Results: $RESULT_DIR/summary.json"
+
+if [[ "${MAESTRO_CLEANUP_DISPATCH:-false}" == "true" ]]; then
+  if [[ "$PROMPT_DIR" == *"/prompts" ]] && [[ -d "$PROMPT_DIR" ]]; then
+    rm -rf "$PROMPT_DIR"
+    echo "Prompt files cleaned up (MAESTRO_CLEANUP_DISPATCH=true)"
+  else
+    echo "WARNING: Skipped cleanup — PROMPT_DIR does not match expected pattern: $PROMPT_DIR" >&2
+  fi
+fi
 
 exit $FAILURES
