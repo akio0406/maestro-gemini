@@ -26,7 +26,7 @@ Where `MAESTRO_STATE_DIR` defaults to `.gemini` if not set. All state paths in t
 
 ### Initialization Steps
 1. Resolve state directory from `MAESTRO_STATE_DIR` (default: `.gemini`)
-2. Create `<state_dir>/state/` directory if it does not exist
+2. Create `<state_dir>/state/` directory if it does not exist (defense-in-depth fallback — workspace readiness startup check is the primary mechanism)
 3. Verify no existing `active-session.md` — if one exists, alert the user and offer to archive or resume
 3. Generate session state using the template from `templates/session-state.md`
 4. Initialize all phases as `pending`
@@ -164,8 +164,8 @@ Archive session state when:
 When `MAESTRO_AUTO_ARCHIVE` is `false`, prompt the user after successful completion: "Session complete. Auto-archive is disabled. Would you like to archive this session?"
 
 ### Archive Steps
-1. Create `<state_dir>/plans/archive/` directory if it does not exist
-2. Create `<state_dir>/state/archive/` directory if it does not exist
+1. Create `<state_dir>/plans/archive/` directory if it does not exist (defense-in-depth fallback — workspace readiness startup check is the primary mechanism)
+2. Create `<state_dir>/state/archive/` directory if it does not exist (defense-in-depth fallback — workspace readiness startup check is the primary mechanism)
 3. Move design document from `<state_dir>/plans/` to `<state_dir>/plans/archive/`
 4. Move implementation plan from `<state_dir>/plans/` to `<state_dir>/plans/archive/`
 5. Update session state `status` to `completed`
