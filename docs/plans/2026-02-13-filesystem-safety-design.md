@@ -65,7 +65,9 @@ Shared protocol injected into delegation prompts alongside `agent-base-protocol.
 ### Rules
 
 **Rule 1 — Ensure Before Write:**
-Before any file creation, write, or move operation, verify the target's parent directory exists. If it doesn't, create it. Applies to every file operation that produces output at a path — writes, moves, copies, renames. This supersedes the base protocol's Scope Verification Step 2 instruction to "stop" when parent directories are missing — instead of stopping, create the missing directory and continue.
+Before any file creation, write, or move operation, verify the target's parent directory exists. If it doesn't, create it using `mkdir -p`. Applies to every file operation that produces output at a path — writes, moves, copies, renames.
+
+**Protocol Override:** This rule modifies the base protocol's Scope Verification Step 2, specifically the check "Files listed for creation have existing parent directories" (`agent-base-protocol.md` line 25). When parent directories are missing, agents must NOT stop and report the issue (as Step 2 line 30 instructs for verification failures). Instead, create the missing directory using `mkdir -p` and continue with the file operation. All other Step 2 verifications (file existence, tool permissions, scope boundaries) remain in effect.
 
 **Rule 2 — Silent Success, Clear Failure:**
 Directory creation is a precondition, not a noteworthy event. Don't report successful directory creation. Only report failures (permission denied, disk full) immediately as a blocker in the Task Report.
@@ -157,17 +159,32 @@ This replaces the current documentation-style description of the desired directo
 
 ### No Changes
 
-- `protocols/agent-base-protocol.md` — filesystem safety is a separate, composable protocol. The safety protocol explicitly supersedes the base protocol's "stop on missing parent directory" instruction.
+- `protocols/agent-base-protocol.md` — filesystem safety is a separate, composable protocol. The safety protocol's Rule 1 explicitly overrides the base protocol's Scope Verification Step 2 line 25 (parent directory check) while leaving all other Step 2 verifications intact.
 - `scripts/parallel-dispatch.sh` — already has proper `mkdir -p` for results directory
 
 ## Known Limitations
 
 ### Hardcoded `.gemini/` Paths in TOML Commands
 
-Several TOML command files use `@{.gemini/state/active-session.md}` file injection syntax with hardcoded `.gemini/` paths:
-- `commands/maestro.orchestrate.toml` (line 8)
-- `commands/maestro.resume.toml` (line 9)
-- `commands/maestro.status.toml` (line 7)
-- `commands/maestro.archive.toml` (lines 9, 15-18)
+Several TOML command files reference hardcoded `.gemini/` paths that cannot be dynamically resolved via `MAESTRO_STATE_DIR`:
 
-The `@{...}` syntax is resolved at compile-time by Gemini CLI before the prompt reaches the model, so these paths cannot be dynamically resolved via `MAESTRO_STATE_DIR`. Custom `MAESTRO_STATE_DIR` values will cause the bootstrap script to create directories at the custom path, but these commands will still look for `.gemini/`. This is a pre-existing limitation not introduced by this design. A separate effort to address dynamic path resolution in commands would be needed.
+**File injection (`@{...}` syntax) — resolved at compile-time by Gemini CLI:**
+- `commands/maestro.resume.toml` (line 9): `@{.gemini/state/active-session.md}`
+- `commands/maestro.status.toml` (line 7): `@{.gemini/state/active-session.md}`
+- `commands/maestro.archive.toml` (lines 9, 15-18): multiple `@{.gemini/...}` references
+
+**Procedural instructions with hardcoded paths:**
+- `commands/maestro.orchestrate.toml` (line 8): `Check .gemini/state/ for any existing active sessions`
+- `commands/maestro.execute.toml` (line 11): `check .gemini/plans/ for the most recent implementation plan`
+
+The `@{...}` syntax is resolved at compile-time by Gemini CLI before the prompt reaches the model, so these paths cannot be dynamically resolved. Custom `MAESTRO_STATE_DIR` values will cause the bootstrap script to create directories at the custom path, but these commands will still reference `.gemini/`. This is a pre-existing limitation not introduced by this design. A separate effort to address dynamic path resolution in commands would be needed.
+
+### Defense-in-Depth Timing Gap for File Injection Commands
+
+Commands that use `@{file-path}` syntax (`/maestro.resume`, `/maestro.status`, `/maestro.archive`) resolve file paths at compile-time, before any skill activates. This means the defense-in-depth `mkdir` instructions retained in session-management cannot execute before the file injection attempt.
+
+**Affected scenario:** If a user invokes `/maestro.resume` or `/maestro.status` in a project where `.gemini/state/` does not exist, the `@{.gemini/state/active-session.md}` injection will fail or inject empty content before the session-management skill has a chance to create the directory.
+
+**What defense-in-depth does protect:** Session creation (writing new `active-session.md`) and archive operations (moving files to archive directories) — these are skill-driven write operations that occur after skill activation, so the inline `mkdir` fallback can execute.
+
+**Mitigation:** The Layer 3 startup check (invoked by `/maestro.orchestrate`) creates all directories on first run. Users who follow the normal workflow (`/maestro.orchestrate` first, then `/maestro.resume` or `/maestro.status` later) will never encounter this gap because directories already exist. The gap only manifests when `/maestro.resume` or `/maestro.status` is the very first Maestro command in a project.
