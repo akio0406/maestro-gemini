@@ -24,6 +24,29 @@ Where:
 
 Where `MAESTRO_STATE_DIR` defaults to `.gemini` if not set. All state paths in this skill use `<MAESTRO_STATE_DIR>` as their base directory. In procedural steps, `<state_dir>` represents the resolved value of this variable.
 
+### State File Access
+
+All reads and writes to files within `<MAESTRO_STATE_DIR>` must go through the dedicated state I/O scripts. These scripts bypass ignore patterns that prevent `read_file` from accessing the state directory.
+
+**Reading state files:**
+```bash
+run_shell_command: ./scripts/read-state.sh <relative-path>
+```
+
+Example: `./scripts/read-state.sh .gemini/state/active-session.md`
+
+**Writing state files:**
+Use `write_file` as the primary mechanism for state file writes. When content must be piped from a shell command, use:
+
+```bash
+run_shell_command: echo '...' | ./scripts/write-state.sh <relative-path>
+```
+
+**Rules:**
+- Never use `read_file` for paths inside `<MAESTRO_STATE_DIR>` — these files are in ignored directories and `read_file` may fail or return errors
+- The `write-state.sh` script writes atomically (temp file + `mv`) to prevent partial writes
+- Both scripts validate against absolute paths and path traversal
+
 ### Initialization Steps
 1. Resolve state directory from `MAESTRO_STATE_DIR` (default: `.gemini`)
 2. Create `<state_dir>/state/` directory if it does not exist (defense-in-depth fallback — workspace readiness startup check is the primary mechanism)
@@ -186,7 +209,7 @@ Resume is triggered by the `/maestro.resume` command or when `/maestro.orchestra
 
 ### Resume Steps
 
-1. **Read State**: Read `<MAESTRO_STATE_DIR>/state/active-session.md` (resolve `MAESTRO_STATE_DIR`, default: `.gemini`)
+1. **Read State**: Read state via run_shell_command: `./scripts/read-state.sh <MAESTRO_STATE_DIR>/state/active-session.md` (resolve `MAESTRO_STATE_DIR`, default: `.gemini`)
 2. **Parse Frontmatter**: Extract YAML frontmatter for session metadata
 3. **Identify Position**: Determine:
    - Last completed phase (highest ID with `status: completed`)
