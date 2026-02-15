@@ -31,7 +31,7 @@ Before any orchestration command:
 | Validation Strictness | `MAESTRO_VALIDATION_STRICTNESS` | `normal` | Post-phase validation |
 | State Directory | `MAESTRO_STATE_DIR` | `.gemini` | Session state and plan paths |
 | Max Concurrent | `MAESTRO_MAX_CONCURRENT` | `0` (unlimited) | Parallel dispatch max simultaneous agents |
-| Stagger Delay | `MAESTRO_STAGGER_DELAY` | `0` (none) | Seconds between parallel agent launches |
+| Stagger Delay | `MAESTRO_STAGGER_DELAY` | `5` (seconds) | Seconds between parallel agent launches |
 | Execution Mode | `MAESTRO_EXECUTION_MODE` | `ask` | Phase 3 dispatch: `parallel`, `sequential`, or `ask` |
 
 When an env var is unset, use the default. When set, override the corresponding agent definition value in delegation prompts. Log resolved non-default settings at session start for transparency.
