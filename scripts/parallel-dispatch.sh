@@ -93,6 +93,7 @@ fi
 
 EXTENSION_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 AGENTS_DIR="$EXTENSION_DIR/agents"
+PROJECT_ROOT="$(pwd)"
 
 PIDS=()
 AGENT_NAMES=()
@@ -107,6 +108,7 @@ echo "Timeout: ${TIMEOUT_MINS} minutes"
 echo "Model: ${MAESTRO_DEFAULT_MODEL:-default}"
 echo "Max Concurrent: $CONCURRENT_DISPLAY"
 echo "Stagger Delay: ${STAGGER_DELAY}s"
+echo "Project Root: $PROJECT_ROOT"
 echo ""
 
 LAUNCHED=0
@@ -143,6 +145,11 @@ for PROMPT_FILE in "${PROMPT_FILES[@]}"; do
     echo "ERROR: Prompt file $AGENT_NAME is empty or whitespace-only" >&2
     exit 1
   fi
+
+  PROMPT_CONTENT="PROJECT ROOT: ${PROJECT_ROOT}
+All file paths in this task are relative to this directory. When using write_file, replace, or read_file, construct absolute paths by prepending this root. When using run_shell_command, execute from this directory.
+
+${PROMPT_CONTENT}"
 
   if [[ "$MAX_CONCURRENT" -gt 0 ]] && [[ "$LAUNCHED" -ge "$MAX_CONCURRENT" ]]; then
     if [[ "$SUPPORTS_WAIT_N" == true ]]; then
