@@ -25,3 +25,7 @@ Always construct full paths before writing. Never write to a path assembled from
 ## Rule 5 — Scope
 
 This protocol applies to Maestro state directories, target project directories, and archive operations.
+
+## Rule 6 — Write Tool Only
+
+All file content must be written using `write_file` or `replace` tools. Never use `run_shell_command` with `cat`, `echo`, `printf`, heredocs, or shell redirection (`>`, `>>`) to create or modify file content. Shell interpretation corrupts structured content (YAML, Markdown, JSON, code with special characters). This reinforces the Agent Base Protocol's File Writing Rule.
