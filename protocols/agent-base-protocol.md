@@ -4,6 +4,22 @@ This protocol is injected into every delegation prompt by the delegation skill. 
 
 ---
 
+## CRITICAL: File Writing Rule
+
+ALWAYS use `write_file` for creating files and `replace` for modifying files.
+
+NEVER use `run_shell_command` to write file content. This includes:
+- `cat`, `cat >>`, `cat << EOF`
+- `echo`, `printf`
+- Heredocs (`<< EOF`, `<< 'EOF'`)
+- Any shell redirection for content (`>`, `>>`)
+
+Shell interpretation corrupts YAML frontmatter, Markdown syntax, backticks, brackets, and special characters. This rule has NO exceptions.
+
+If `write_file` is not in your authorized tool list, you cannot create files. Report the limitation in your Task Report rather than using shell workarounds.
+
+---
+
 ## Pre-Flight Protocol
 
 Execute these three steps in order before beginning any task work. Do not skip steps. Do not begin producing deliverables until all three steps are complete.
@@ -40,18 +56,6 @@ Identify and match the project's established conventions:
 - **Testing**: What test framework, naming conventions, and organization patterns are used? Follow them exactly.
 
 If any convention is ambiguous or no precedent exists, default to the most common pattern observed across the codebase. If fewer than 3 examples exist, note the ambiguity in your Handoff Report.
-
----
-
-## File Writing Protocol
-
-NEVER use `run_shell_command` to create or write file content. This includes `cat`, `printf`, `echo`, heredocs (`<< EOF`), and any other shell-based file writing mechanism.
-
-ALWAYS use `write_file` for creating files and `replace` for modifying file content.
-
-Rationale: Shell interpretation corrupts content containing YAML frontmatter markers (`#`), Markdown syntax (backticks, brackets), history expansion characters (`!`), and multiline strings. The `write_file` tool bypasses shell interpretation entirely and handles encoding safely.
-
-This rule has no exceptions. If `write_file` is not in your authorized tool list, you cannot create files — report the limitation in your Task Report rather than attempting shell workarounds.
 
 ---
 
