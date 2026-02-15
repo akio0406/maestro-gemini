@@ -22,12 +22,14 @@ mkdir -p "$DISPATCH_DIR/prompts"
 cat > "$DISPATCH_DIR/prompts/agent-a.txt" <<'PROMPT'
 You are Agent A in a parallel execution test.
 
-Your task: Write EXACTLY this content to the file src/file-a.txt:
+Your task: Use the write_file tool to write EXACTLY this content to the file src/file-a.txt:
 "Agent A was here. Timestamp: $(date +%s)"
 
+IMPORTANT: You MUST use the write_file tool to write the file. Do NOT use cat, echo, printf, heredocs, or any shell command to write file content.
+
 Steps:
-1. Write the content to src/file-a.txt
-2. Read the file back to confirm
+1. Use write_file to write the content to src/file-a.txt
+2. Use read_file to read the file back and confirm
 
 Do NOT touch any other files. Only modify src/file-a.txt.
 
@@ -38,12 +40,14 @@ PROMPT
 cat > "$DISPATCH_DIR/prompts/agent-b.txt" <<'PROMPT'
 You are Agent B in a parallel execution test.
 
-Your task: Write EXACTLY this content to the file src/file-b.txt:
+Your task: Use the write_file tool to write EXACTLY this content to the file src/file-b.txt:
 "Agent B was here. Timestamp: $(date +%s)"
 
+IMPORTANT: You MUST use the write_file tool to write the file. Do NOT use cat, echo, printf, heredocs, or any shell command to write file content.
+
 Steps:
-1. Write the content to src/file-b.txt
-2. Read the file back to confirm
+1. Use write_file to write the content to src/file-b.txt
+2. Use read_file to read the file back and confirm
 
 Do NOT touch any other files. Only modify src/file-b.txt.
 
