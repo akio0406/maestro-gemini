@@ -18,7 +18,7 @@ Maestro transforms Gemini CLI into a multi-agent orchestration platform. Instead
 - **Session Persistence** — All orchestration state tracked in YAML+Markdown files for reliable resumption
 - **Least-Privilege Security** — Each subagent receives only the tools required for its role
 - **Standalone Commands** — Direct access to code review, debugging, security audit, and performance analysis without full orchestration
-- **Configurable Settings** — 10 environment-variable-driven parameters for model selection, timeouts, validation strictness, and more
+- **Configurable Settings** — 13 environment-variable-driven parameters for model selection, timeouts, validation strictness, and more
 
 ## Architecture
 
@@ -120,28 +120,27 @@ Maestro will:
 
 ## Configuration
 
-### Extension Settings
+### Environment Variables
 
-Maestro provides 10 configurable settings that control agent behavior, workflow preferences, and execution parameters. Configure them via:
+Maestro works out of the box with sensible defaults. To customize behavior, set any of these environment variables in your shell profile or project `.env` file:
 
-```bash
-gemini extensions config maestro
-```
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `MAESTRO_DEFAULT_MODEL` | `gemini-3-pro-preview` | Model used by all agents unless individually overridden |
+| `MAESTRO_WRITER_MODEL` | `gemini-3-flash-preview` | Model for technical-writer agent |
+| `MAESTRO_DEFAULT_TEMPERATURE` | `0.2` | Temperature for all agents (0.0-1.0) |
+| `MAESTRO_MAX_TURNS` | `25` | Maximum turns per subagent execution |
+| `MAESTRO_AGENT_TIMEOUT` | `10` | Timeout in minutes per subagent |
+| `MAESTRO_DISABLED_AGENTS` | _(none)_ | Comma-separated list of agents to exclude |
+| `MAESTRO_MAX_RETRIES` | `2` | Retry attempts per phase before escalation |
+| `MAESTRO_AUTO_ARCHIVE` | `true` | Archive sessions on completion |
+| `MAESTRO_VALIDATION_STRICTNESS` | `normal` | `strict` / `normal` / `lenient` |
+| `MAESTRO_STATE_DIR` | `.gemini` | Directory for session state and plans |
+| `MAESTRO_MAX_CONCURRENT` | `0` (unlimited) | Max simultaneous agents in parallel dispatch |
+| `MAESTRO_STAGGER_DELAY` | `5` | Seconds between parallel agent launches |
+| `MAESTRO_EXECUTION_MODE` | `ask` | Phase 3 dispatch: `parallel` / `sequential` / `ask` |
 
-| Setting | Environment Variable | Default | Description |
-|---------|---------------------|---------|-------------|
-| Default Model | `MAESTRO_DEFAULT_MODEL` | `gemini-3-pro-preview` | Model used by all agents unless individually overridden |
-| Writer Model | `MAESTRO_WRITER_MODEL` | `gemini-3-flash-preview` | Model for technical-writer agent |
-| Default Temperature | `MAESTRO_DEFAULT_TEMPERATURE` | `0.2` | Temperature for all agents (0.0-1.0) |
-| Max Agent Turns | `MAESTRO_MAX_TURNS` | `25` | Maximum turns per subagent execution |
-| Agent Timeout | `MAESTRO_AGENT_TIMEOUT` | `10` | Timeout in minutes per subagent |
-| Disabled Agents | `MAESTRO_DISABLED_AGENTS` | _(none)_ | Comma-separated list of agents to exclude |
-| Max Retries | `MAESTRO_MAX_RETRIES` | `2` | Retry attempts per phase before escalation |
-| Auto Archive | `MAESTRO_AUTO_ARCHIVE` | `true` | Archive sessions on completion |
-| Validation Strictness | `MAESTRO_VALIDATION_STRICTNESS` | `normal` | `strict` / `normal` / `lenient` |
-| State Directory | `MAESTRO_STATE_DIR` | `.gemini` | Directory for session state and plans |
-
-Defaults are fallback values enforced by the orchestrator when a setting is not configured.
+All settings are optional. The orchestrator uses the defaults shown above when a variable is not set.
 
 ### Theme
 
