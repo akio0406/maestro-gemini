@@ -82,32 +82,5 @@
       "envVar": "MAESTRO_EXECUTION_MODE",
       "sensitive": false
     }
-  ],
-  "themes": [
-    {
-      "name": "Maestro",
-      "type": "custom",
-      "text": {
-        "primary": "#E8E1D3",
-        "secondary": "#A89B8C",
-        "link": "#D4A84B",
-        "accent": "#D4A84B",
-        "response": "#E8E1D3"
-      },
-      "Background": "#1A1714",
-      "Foreground": "#E8E1D3",
-      "LightBlue": "#7BA4C7",
-      "AccentBlue": "#5B8CB8",
-      "AccentPurple": "#9B7BB8",
-      "AccentCyan": "#6BB8B2",
-      "AccentGreen": "#8BB86B",
-      "AccentYellow": "#D4A84B",
-      "AccentRed": "#C75B5B",
-      "Comment": "#6B6156",
-      "Gray": "#8A8079",
-      "DiffAdded": "#6B9B4B",
-      "DiffRemoved": "#9B4B4B",
-      "DiffModified": "#5B8CB8"
-    }
   ]
 }
