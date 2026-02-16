@@ -7,6 +7,35 @@ description: Phase execution methodology for orchestration workflows with error 
 
 Activate this skill during Phase 3 (Execution) of Maestro orchestration. This skill provides the protocols for executing implementation plan phases through subagent delegation, handling errors, and completing orchestration sessions.
 
+## Execution Mode Gate
+
+Before executing any phases in Phase 3:
+
+1. Read `MAESTRO_EXECUTION_MODE` (default: `ask`)
+2. If `ask`: present the execution mode selection prompt defined in `GEMINI.md`
+3. Record the user's choice in session state as `execution_mode`
+4. If `parallel` or `sequential`: use the pre-selected mode and log it
+5. For the remainder of this session, use the selected mode for all batches
+
+**Mode-specific behavior:**
+- When parallel is selected and a batch contains only one phase, fall back to sequential for that batch (no benefit from parallel with a single agent)
+- When sequential is selected and the plan identifies parallelizable phases, execute them sequentially in dependency order — do not reorder the plan
+
+## State File Access
+
+All reads of files within `<MAESTRO_STATE_DIR>` (including parallel dispatch results) must use the dedicated state I/O script to bypass ignore patterns:
+
+```bash
+run_shell_command: ./scripts/read-state.sh <relative-path>
+```
+
+This applies to:
+- Reading `summary.json` from parallel dispatch results
+- Reading individual agent `.json` output files
+- Reading `active-session.md` for state checks
+
+Never use `read_file` for paths inside `<MAESTRO_STATE_DIR>`.
+
 ## Phase Execution Protocol
 
 ### Sequential Execution
@@ -23,15 +52,41 @@ For phases with dependencies (`blocked_by` is non-empty):
 
 ### Parallel Execution
 
-For phases at the same dependency depth with no file overlap:
+For phases at the same dependency depth with no file overlap, use shell-based parallel dispatch via `scripts/parallel-dispatch.sh`. This spawns independent `gemini` CLI processes that execute concurrently, bypassing the sequential `delegate_to_agent` tool scheduler.
+
+#### Parallel Dispatch Protocol
 
 1. Verify all blocking phases for every phase in the batch are completed
-2. Update all batch phases to `in_progress` simultaneously
-3. Invoke all assigned agents concurrently in a single message
-4. Wait for all agents in the batch to complete
-5. Process all Task Reports
-6. Update session state for all phases in the batch
-7. Only proceed to the next batch when all phases in the current batch are completed
+2. Update all batch phases to `in_progress` simultaneously in session state
+3. Ensure the batch-specific dispatch directory exists before writing prompt files:
+   ```bash
+   mkdir -p <state_dir>/parallel/<batch-id>/prompts
+   ```
+4. Write each agent's full delegation prompt (including injected base protocol, context chain, and downstream consumer declaration) to its prompt file
+5. Invoke the parallel dispatch script via `run_shell_command`:
+   ```bash
+   ./scripts/parallel-dispatch.sh <state_dir>/parallel/<batch-id>
+   ```
+6. The script spawns one `gemini -p <prompt> --yolo --output-format json` process per prompt file
+7. All agents execute concurrently as independent CLI processes
+8. The script waits for all agents, collects exit codes, and writes `results/summary.json`
+9. Read the batch summary via run_shell_command: `./scripts/read-state.sh <state_dir>/parallel/<batch-id>/results/summary.json`
+10. For each agent, read its JSON output via run_shell_command: `./scripts/read-state.sh <state_dir>/parallel/<batch-id>/results/<agent-name>.json` and parse the Task Report
+11. Update session state for all phases in the batch
+12. Only proceed to the next batch when all phases in the current batch are completed
+
+#### Parallel Dispatch Constraints
+
+- Each agent runs as an **independent `gemini` process** — no shared memory or conversation context between parallel agents
+- Agents inherit the project directory and linked extensions, but do NOT share the orchestrator's session
+- The orchestrator must write complete, self-contained prompts — parallel agents cannot ask follow-up questions
+- File ownership must be strictly non-overlapping — the dispatch script provides no file locking
+- `MAESTRO_DEFAULT_MODEL` and `MAESTRO_AGENT_TIMEOUT` environment variables are respected by the dispatch script
+- If any agent in the batch fails, the summary reports `partial_failure` — the orchestrator decides whether to retry or escalate
+
+#### Fallback to Sequential
+
+If parallel dispatch fails (script not found, `gemini` CLI not available in PATH, or all agents fail), fall back to sequential execution via `delegate_to_agent` and record the fallback in session state.
 
 ### Progress Context
 
@@ -55,10 +110,10 @@ Record all errors in session state with complete metadata:
 
 ### Retry Logic
 
-- **Maximum 2 retries** per phase before escalating to user
+- **Maximum retries** per phase: controlled by `MAESTRO_MAX_RETRIES` (default: 2). Escalate to user after this limit is reached.
 - **First failure**: Analyze the error, adjust delegation parameters (more context, narrower scope, different approach), retry automatically
-- **Second failure**: Report to user and request guidance
-- **Third failure**: Mark phase as `failed`, stop execution, escalate
+- **Subsequent failures up to limit**: Continue retrying with progressively adjusted parameters
+- **Limit exceeded**: Mark phase as `failed`, stop execution, escalate to user
 
 Increment `retry_count` in session state on each retry attempt.
 
@@ -85,7 +140,7 @@ Present failures to the user in this structured format:
 Phase Execution Failed: [phase-name]
 
 Agent: [agent-name]
-Attempt: [N] of 2
+Attempt: [N] of [MAESTRO_MAX_RETRIES, default 2]
 Error Type: [error-type]
 
 Error Message:

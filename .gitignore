@@ -24,9 +24,12 @@ Thumbs.db
 
 # AI tooling
 .gemini/
-GEMINI.md
 .claude/
 CLAUDE.md
+
+# Worktrees
+.worktrees/
+
 # Logs
 *.log
 npm-debug.log*

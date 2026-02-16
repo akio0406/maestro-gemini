@@ -177,6 +177,18 @@ Use the implementation plan template from `templates/implementation-plan.md`.
 4. **Phase Details**: Full specification for each phase (objective, agent, files, details, validation, dependencies)
 5. **File Inventory**: Complete table mapping every file to its phase and purpose
 6. **Risk Classification**: Per-phase risk assessment (LOW/MEDIUM/HIGH) with rationale
+7. **Execution Profile**: Summary of parallel vs sequential characteristics to inform mode selection:
+   ```
+   Execution Profile:
+   - Total phases: [N]
+   - Parallelizable phases: [M] (in [B] batches)
+   - Sequential-only phases: [S]
+   - Estimated parallel wall time: [time estimate based on batch execution]
+   - Estimated sequential wall time: [time estimate based on serial execution]
+
+   Note: Parallel dispatch runs agents in autonomous mode (--yolo).
+   All tool calls are auto-approved without user confirmation.
+   ```
 
 ### Completion Criteria
 The implementation plan is complete when:

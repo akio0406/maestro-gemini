@@ -20,11 +20,37 @@ Where:
 - `<topic-slug>` is a lowercase, hyphenated summary matching the design document topic
 
 ### File Location
-`.gemini/state/active-session.md`
+`<MAESTRO_STATE_DIR>/state/active-session.md`
+
+Where `MAESTRO_STATE_DIR` defaults to `.gemini` if not set. All state paths in this skill use `<MAESTRO_STATE_DIR>` as their base directory. In procedural steps, `<state_dir>` represents the resolved value of this variable.
+
+### State File Access
+
+All reads and writes to files within `<MAESTRO_STATE_DIR>` must go through the dedicated state I/O scripts. These scripts bypass ignore patterns that prevent `read_file` from accessing the state directory.
+
+**Reading state files:**
+```bash
+run_shell_command: ./scripts/read-state.sh <relative-path>
+```
+
+Example: `./scripts/read-state.sh .gemini/state/active-session.md`
+
+**Writing state files:**
+Use `write_file` as the primary mechanism for state file writes. When content must be piped from a shell command, use:
+
+```bash
+run_shell_command: echo '...' | ./scripts/write-state.sh <relative-path>
+```
+
+**Rules:**
+- Never use `read_file` for paths inside `<MAESTRO_STATE_DIR>` — these files are in ignored directories and `read_file` may fail or return errors
+- The `write-state.sh` script writes atomically (temp file + `mv`) to prevent partial writes
+- Both scripts validate against absolute paths and path traversal
 
 ### Initialization Steps
-1. Create `.gemini/state/` directory if it does not exist
-2. Verify no existing `active-session.md` — if one exists, alert the user and offer to archive or resume
+1. Resolve state directory from `MAESTRO_STATE_DIR` (default: `.gemini`)
+2. Create `<state_dir>/state/` directory if it does not exist (defense-in-depth fallback — workspace readiness startup check is the primary mechanism)
+3. Verify no existing `active-session.md` — if one exists, alert the user and offer to archive or resume
 3. Generate session state using the template from `templates/session-state.md`
 4. Initialize all phases as `pending`
 5. Set overall status to `in_progress`
@@ -154,25 +180,27 @@ Status indicators:
 
 ### When to Archive
 Archive session state when:
-- All phases are completed successfully
-- User explicitly requests archival
-- User starts a new orchestration (previous session must be archived first)
+- All phases are completed successfully AND `MAESTRO_AUTO_ARCHIVE` is `true` (default)
+- User explicitly requests archival (regardless of `MAESTRO_AUTO_ARCHIVE` setting)
+- User starts a new orchestration (previous session must be archived first, regardless of setting)
+
+When `MAESTRO_AUTO_ARCHIVE` is `false`, prompt the user after successful completion: "Session complete. Auto-archive is disabled. Would you like to archive this session?"
 
 ### Archive Steps
-1. Create `.gemini/plans/archive/` directory if it does not exist
-2. Create `.gemini/state/archive/` directory if it does not exist
-3. Move design document from `.gemini/plans/` to `.gemini/plans/archive/`
-4. Move implementation plan from `.gemini/plans/` to `.gemini/plans/archive/`
+1. Create `<state_dir>/plans/archive/` directory if it does not exist (defense-in-depth fallback — workspace readiness startup check is the primary mechanism)
+2. Create `<state_dir>/state/archive/` directory if it does not exist (defense-in-depth fallback — workspace readiness startup check is the primary mechanism)
+3. Move design document from `<state_dir>/plans/` to `<state_dir>/plans/archive/`
+4. Move implementation plan from `<state_dir>/plans/` to `<state_dir>/plans/archive/`
 5. Update session state `status` to `completed`
 6. Update `updated` timestamp
-7. Move `active-session.md` from `.gemini/state/` to `.gemini/state/archive/<session-id>.md`
+7. Move `active-session.md` from `<state_dir>/state/` to `<state_dir>/state/archive/<session-id>.md`
 8. Confirm archival to user with summary of what was archived
 
 ### Archive Verification
 After archival, verify:
-- No `active-session.md` exists in `.gemini/state/`
+- No `active-session.md` exists in `<state_dir>/state/`
 - Archived files are readable at their new locations
-- Plan files are no longer in active `.gemini/plans/` directory
+- Plan files are no longer in active `<state_dir>/plans/` directory
 
 ## Resume Protocol
 
@@ -181,7 +209,7 @@ Resume is triggered by the `/maestro.resume` command or when `/maestro.orchestra
 
 ### Resume Steps
 
-1. **Read State**: Read `.gemini/state/active-session.md`
+1. **Read State**: Read state via run_shell_command: `./scripts/read-state.sh <MAESTRO_STATE_DIR>/state/active-session.md` (resolve `MAESTRO_STATE_DIR`, default: `.gemini`)
 2. **Parse Frontmatter**: Extract YAML frontmatter for session metadata
 3. **Identify Position**: Determine:
    - Last completed phase (highest ID with `status: completed`)
