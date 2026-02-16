@@ -77,6 +77,7 @@ Agent-specific env var > General env var > Agent frontmatter default
 
 Example: For `technical-writer`, if both `MAESTRO_DEFAULT_MODEL=gemini-2.5-pro` and `MAESTRO_WRITER_MODEL=gemini-3-flash-preview` are set, use `gemini-3-flash-preview`.
 
+
 ## Delegation Prompt Template
 
 Every delegation to a subagent must follow this structure:

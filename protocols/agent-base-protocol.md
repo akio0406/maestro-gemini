@@ -20,6 +20,7 @@ If `write_file` is not in your authorized tool list, you cannot create files. Re
 
 ---
 
+
 ## Pre-Flight Protocol
 
 Execute these three steps in order before beginning any task work. Do not skip steps. Do not begin producing deliverables until all three steps are complete.
