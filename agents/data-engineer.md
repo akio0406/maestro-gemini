@@ -1,15 +1,19 @@
 ---
 name: data-engineer
-description: "Database and data pipeline specialist for schema design, query optimization, and ETL implementation"
 kind: local
+description: "Data engineering specialist for schema design, query optimization, ETL pipelines, and data modeling. Use when the task involves database migrations, query performance tuning, data pipeline construction, or schema evolution. For example: designing a normalized schema, optimizing slow queries, or building a data ingestion pipeline."
 tools:
   - read_file
+  - list_directory
   - glob
-  - search_file_content
+  - grep_search
   - write_file
   - replace
   - run_shell_command
-model: gemini-3-pro-preview
+  - write_todos
+  - read_many_files
+  - ask_user
+  - google_web_search
 temperature: 0.2
 max_turns: 20
 timeout_mins: 8
@@ -93,14 +97,23 @@ Destructive migrations (DROP COLUMN, DROP TABLE) require a two-phase approach:
 
 ## Output Contract
 
-When completing your task, conclude with a structured report:
+When completing your task, conclude with a **Handoff Report** containing two parts:
 
-### Task Report
-- **Status**: success | failure | partial
-- **Files Created**: [list of absolute paths, or "none"]
-- **Files Modified**: [list of absolute paths, or "none"]
-- **Files Deleted**: [list of absolute paths, or "none"]
+### Part 1 — Task Report
+- **Status**: success | partial | failure
+- **Objective Achieved**: [One sentence restating the task objective and whether it was fully met]
+- **Files Created**: [Absolute paths with one-line purpose each, or "none"]
+- **Files Modified**: [Absolute paths with one-line summary of what changed and why, or "none"]
+- **Files Deleted**: [Absolute paths with rationale, or "none"]
+- **Decisions Made**: [Choices made that were not explicitly specified in the delegation prompt, with rationale for each, or "none"]
 - **Validation**: pass | fail | skipped
-- **Validation Output**: [command output or "N/A"]
-- **Errors**: [list of errors encountered, or "none"]
-- **Summary**: [1-2 sentence summary of what was accomplished]
+- **Validation Output**: [Command output or "N/A"]
+- **Errors**: [List with type, description, and resolution status, or "none"]
+- **Scope Deviations**: [Anything asked but not completed, or additional necessary work discovered but not performed, or "none"]
+
+### Part 2 — Downstream Context
+- **Key Interfaces Introduced**: [Type signatures and file locations, or "none"]
+- **Patterns Established**: [New patterns that downstream agents must follow for consistency, or "none"]
+- **Integration Points**: [Where and how downstream work should connect to this output, or "none"]
+- **Assumptions**: [Anything assumed that downstream agents should verify, or "none"]
+- **Warnings**: [Gotchas, edge cases, or fragile areas downstream agents should be aware of, or "none"]

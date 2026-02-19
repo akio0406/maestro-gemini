@@ -42,9 +42,9 @@ Maestro requires Gemini CLI's experimental subagent system. Enable it in your Ge
 
 If the file does not exist, create it with the content above. If it exists, add the `experimental` section to your existing configuration.
 
-**Important**: Subagents operate in autonomous mode — they execute tools (shell commands, file writes, file deletions) without individual confirmation for each step. Review the [Gemini CLI subagents documentation](https://geminicli.com/docs/core/subagents/) for full details.
+**Important**: Parallel-dispatched agents run in autonomous mode (`--approval-mode=yolo`). Sequential delegation uses your current Gemini CLI approval mode. Review the [Gemini CLI subagents documentation](https://geminicli.com/docs/core/subagents/) for full details.
 
-Maestro will check for subagent support on startup and offer to enable it if missing.
+Maestro does not auto-edit `~/.gemini/settings.json`; enable `experimental.enableAgents` manually before orchestration.
 
 ## Installation
 
@@ -82,12 +82,14 @@ You should see `maestro` in the list of active extensions.
 
 ## Quick Start
 
+Path examples in this guide use the default `MAESTRO_STATE_DIR=.gemini` unless noted otherwise.
+
 This walkthrough demonstrates a complete orchestration from start to finish.
 
 ### 1. Start Orchestration
 
 ```
-/maestro.orchestrate Build a REST API for a task management system with user authentication
+/maestro:orchestrate Build a REST API for a task management system with user authentication
 ```
 
 ### 2. Design Dialogue
@@ -170,7 +172,7 @@ Maestro asks which execution mode to use:
 
 **Option 1: Parallel Dispatch (faster)**
 - Independent phases run as concurrent `gemini` CLI processes
-- Agents operate in autonomous mode (`--yolo`) — all tool calls are auto-approved
+- Agents operate in autonomous mode (`--approval-mode=yolo`) — all tool calls are auto-approved
 - You review results after each batch completes
 - Best for well-defined tasks with clear file ownership
 
@@ -233,13 +235,13 @@ The session is automatically archived to `.gemini/state/archive/2026-02-15-task-
 
 ## Command Reference
 
-### /maestro.orchestrate
+### /maestro:orchestrate
 
 Start a full Maestro orchestration for a complex engineering task.
 
 **Syntax**:
 ```
-/maestro.orchestrate <task description>
+/maestro:orchestrate <task description>
 ```
 
 **Arguments**:
@@ -261,7 +263,7 @@ Start a full Maestro orchestration for a complex engineering task.
 
 **Example**:
 ```
-/maestro.orchestrate Build a REST API for a task management system with user authentication
+/maestro:orchestrate Build a REST API for a task management system with user authentication
 ```
 
 **Expected Output**:
@@ -272,13 +274,13 @@ Start a full Maestro orchestration for a complex engineering task.
 - Session state tracking in `.gemini/state/active-session.md`
 - Phase-by-phase execution with progress updates
 
-### /maestro.resume
+### /maestro:resume
 
 Resume an interrupted orchestration session.
 
 **Syntax**:
 ```
-/maestro.resume
+/maestro:resume
 ```
 
 **Arguments**: None
@@ -301,7 +303,7 @@ Resume an interrupted orchestration session.
 
 **Example**:
 ```
-/maestro.resume
+/maestro:resume
 ```
 
 **Expected Output**:
@@ -323,13 +325,13 @@ Phase 3 (coder):
 I'll retry Phase 3 now. Continue?
 ```
 
-### /maestro.execute
+### /maestro:execute
 
 Execute an existing implementation plan, skipping design and planning phases.
 
 **Syntax**:
 ```
-/maestro.execute <path-to-implementation-plan>
+/maestro:execute <path-to-implementation-plan>
 ```
 
 **Arguments**:
@@ -354,7 +356,7 @@ Execute an existing implementation plan, skipping design and planning phases.
 
 **Example**:
 ```
-/maestro.execute .gemini/plans/2026-02-15-api-refactor-impl-plan.md
+/maestro:execute .gemini/plans/2026-02-15-api-refactor-impl-plan.md
 ```
 
 **Expected Output**:
@@ -370,13 +372,13 @@ Execution Mode:
 Which mode would you like to use? (parallel/sequential)
 ```
 
-### /maestro.review
+### /maestro:review
 
 Run a standalone code review on staged changes, last commit, or specified paths.
 
 **Syntax**:
 ```
-/maestro.review [file paths or glob patterns]
+/maestro:review [file paths or glob patterns]
 ```
 
 **Arguments**:
@@ -405,7 +407,7 @@ Run a standalone code review on staged changes, last commit, or specified paths.
 
 **Example**:
 ```
-/maestro.review src/api/tasks.js src/api/users.js
+/maestro:review src/api/tasks.js src/api/users.js
 ```
 
 **Expected Output**:
@@ -437,13 +439,13 @@ SUGGESTIONS (1):
 - src/api/tasks.js:60-80 — Consider extracting validation logic to middleware
 ```
 
-### /maestro.status
+### /maestro:status
 
 Display the current orchestration session status.
 
 **Syntax**:
 ```
-/maestro.status
+/maestro:status
 ```
 
 **Arguments**: None
@@ -467,7 +469,7 @@ Display the current orchestration session status.
 
 **Example**:
 ```
-/maestro.status
+/maestro:status
 ```
 
 **Expected Output**:
@@ -498,13 +500,13 @@ Token Usage:
 Errors: None
 ```
 
-### /maestro.archive
+### /maestro:archive
 
 Archive the current active orchestration session.
 
 **Syntax**:
 ```
-/maestro.archive
+/maestro:archive
 ```
 
 **Arguments**: None
@@ -529,7 +531,7 @@ Archive the current active orchestration session.
 
 **Example**:
 ```
-/maestro.archive
+/maestro:archive
 ```
 
 **Expected Output**:
@@ -551,13 +553,13 @@ Archived Successfully:
 No active session remains.
 ```
 
-### /maestro.debug
+### /maestro:debug
 
 Focused debugging session to investigate and diagnose an issue.
 
 **Syntax**:
 ```
-/maestro.debug <issue description>
+/maestro:debug <issue description>
 ```
 
 **Arguments**:
@@ -586,7 +588,7 @@ Focused debugging session to investigate and diagnose an issue.
 
 **Example**:
 ```
-/maestro.debug User login returns 500 error when password contains special characters
+/maestro:debug User login returns 500 error when password contains special characters
 ```
 
 **Expected Output**:
@@ -626,13 +628,13 @@ Add test case in test/auth/validate.test.js:
   });
 ```
 
-### /maestro.security-audit
+### /maestro:security-audit
 
 Run a security assessment on the specified scope.
 
 **Syntax**:
 ```
-/maestro.security-audit <scope>
+/maestro:security-audit <scope>
 ```
 
 **Arguments**:
@@ -663,7 +665,7 @@ Run a security assessment on the specified scope.
 
 **Example**:
 ```
-/maestro.security-audit src/auth src/api
+/maestro:security-audit src/auth src/api
 ```
 
 **Expected Output**:
@@ -706,13 +708,13 @@ Overall Security Posture: High Risk
 Critical issues must be addressed before production deployment.
 ```
 
-### /maestro.perf-check
+### /maestro:perf-check
 
 Run a performance analysis on the specified scope.
 
 **Syntax**:
 ```
-/maestro.perf-check <scope>
+/maestro:perf-check <scope>
 ```
 
 **Arguments**:
@@ -741,7 +743,7 @@ Run a performance analysis on the specified scope.
 
 **Example**:
 ```
-/maestro.perf-check src/api/tasks.js
+/maestro:perf-check src/api/tasks.js
 ```
 
 **Expected Output**:
@@ -802,6 +804,8 @@ Measurement Plan:
 ## Workflow Guide
 
 This section walks through the Design → Plan → Execute → Complete lifecycle from a user perspective.
+
+> **Skill Activation Prompts**: Each skill activated during orchestration requires a user confirmation dialog in the Gemini CLI. Extension-provided skills are never auto-approved. During a full `/maestro:orchestrate` workflow, expect 3-5 confirmation prompts — one per phase skill activation. To suppress these prompts, configure an auto-approve policy in your Gemini CLI settings.
 
 ```mermaid
 flowchart TD
@@ -929,12 +933,12 @@ flowchart TD
    - Retries automatically (up to `MAESTRO_MAX_RETRIES`, default: 2)
    - Escalates to you if retries exhausted
 
-5. **State Persistence**: Session state is continuously updated in `.gemini/state/active-session.md`. You can check status with `/maestro.status` or resume with `/maestro.resume` if interrupted.
+5. **State Persistence**: Session state is continuously updated in `.gemini/state/active-session.md`. You can check status with `/maestro:status` or resume with `/maestro:resume` if interrupted.
 
 **Your Actions**:
 - Choose execution mode based on task complexity and trust level
 - Monitor progress (Maestro provides updates after each phase)
-- Intervene if errors occur (manual fix → `/maestro.resume`)
+- Intervene if errors occur (manual fix → `/maestro:resume`)
 - Review agent output if needed (session state contains full logs)
 
 ### Phase 4: Completion
@@ -968,13 +972,13 @@ flowchart TD
 
 ```mermaid
 stateDiagram-v2
-    [*] --> New: /maestro.orchestrate
+    [*] --> New: /maestro:orchestrate
     New --> Active: Begin execution
     Active --> Completed: All phases complete
     Active --> Interrupted: Timeout/error/stop
-    Interrupted --> Active: /maestro.resume
-    Completed --> Archived: Auto-archive or /maestro.archive
-    Active --> Archived: /maestro.archive (manual)
+    Interrupted --> Active: /maestro:resume
+    Completed --> Archived: Auto-archive or /maestro:archive
+    Active --> Archived: /maestro:archive (manual)
     Archived --> [*]
 ```
 
@@ -1041,10 +1045,10 @@ phases:
 
 ### Checking Session Status
 
-Use `/maestro.status` to check orchestration progress without continuing execution:
+Use `/maestro:status` to check orchestration progress without continuing execution:
 
 ```
-/maestro.status
+/maestro:status
 ```
 
 This displays:
@@ -1060,7 +1064,7 @@ This displays:
 If orchestration is interrupted (timeout, manual stop, error), resume with:
 
 ```
-/maestro.resume
+/maestro:resume
 ```
 
 Maestro will:
@@ -1074,15 +1078,15 @@ Maestro will:
 1. **Timeout**: An agent took too long and was terminated
    - Review the timeout error in session state
    - Adjust `MAESTRO_AGENT_TIMEOUT` if needed
-   - `/maestro.resume` to retry
+   - `/maestro:resume` to retry
 
 2. **Validation Failure**: Build or tests failed after a phase
    - Review the error logs
    - Manually fix the issue
-   - `/maestro.resume` to retry validation
+   - `/maestro:resume` to retry validation
 
 3. **Manual Stop**: You stopped Gemini CLI mid-orchestration
-   - `/maestro.resume` picks up where you left off
+   - `/maestro:resume` picks up where you left off
 
 ### Archiving Sessions
 
@@ -1091,7 +1095,7 @@ Sessions are automatically archived on completion if `MAESTRO_AUTO_ARCHIVE` is `
 To manually archive a session:
 
 ```
-/maestro.archive
+/maestro:archive
 ```
 
 This moves:
@@ -1106,7 +1110,7 @@ This moves:
 
 ### Multiple Sessions
 
-Maestro enforces a single active session at a time. If you start `/maestro.orchestrate` with an existing active session, Maestro will:
+Maestro enforces a single active session at a time. If you start `/maestro:orchestrate` with an existing active session, Maestro will:
 1. Detect the active session
 2. Present its status
 3. Offer to resume or archive it
@@ -1118,13 +1122,13 @@ This prevents conflicting orchestrations and accidental overwrites.
 
 These commands provide direct access to specific agents without full orchestration.
 
-### Code Review (/maestro.review)
+### Code Review (/maestro:review)
 
 **Use Case**: Get a code quality assessment before committing changes.
 
 **Best Practices**:
-- Run on staged changes before committing: `/maestro.review`
-- Review specific files: `/maestro.review src/api/*.js`
+- Run on staged changes before committing: `/maestro:review`
+- Review specific files: `/maestro:review src/api/*.js`
 - Use after refactoring to catch regressions
 
 **Severity Levels**:
@@ -1136,7 +1140,7 @@ These commands provide direct access to specific agents without full orchestrati
 **Example Workflow**:
 ```bash
 git add src/api/tasks.js src/api/users.js
-/maestro.review
+/maestro:review
 
 # Review findings
 # Fix critical and major issues
@@ -1144,19 +1148,19 @@ git add .
 git commit -m "Add task and user API endpoints"
 ```
 
-### Debugging (/maestro.debug)
+### Debugging (/maestro:debug)
 
 **Use Case**: Investigate and diagnose a bug or unexpected behavior.
 
 **Best Practices**:
-- Provide specific symptoms: `/maestro.debug Login returns 500 when password contains special characters`
+- Provide specific symptoms: `/maestro:debug Login returns 500 when password contains special characters`
 - Include error messages if available
 - Mention steps to reproduce
 - The debugger agent has shell access and can run tests, examine logs, and trace execution
 
 **Example Workflow**:
 ```bash
-/maestro.debug User authentication fails with "Invalid token" error after upgrading to v2.0
+/maestro:debug User authentication fails with "Invalid token" error after upgrading to v2.0
 
 # Debugger investigates:
 # 1. Examines auth middleware
@@ -1168,12 +1172,12 @@ git commit -m "Add task and user API endpoints"
 # Run tests to verify
 ```
 
-### Security Audit (/maestro.security-audit)
+### Security Audit (/maestro:security-audit)
 
 **Use Case**: Assess security posture before deploying to production.
 
 **Best Practices**:
-- Audit authentication and authorization: `/maestro.security-audit src/auth src/api`
+- Audit authentication and authorization: `/maestro:security-audit src/auth src/api`
 - Audit before handling sensitive data (PII, payment info)
 - Run after adding third-party dependencies
 - Treat critical findings as blockers for production deployment
@@ -1186,29 +1190,29 @@ git commit -m "Add task and user API endpoints"
 
 **Example Workflow**:
 ```bash
-/maestro.security-audit src/auth src/api src/db
+/maestro:security-audit src/auth src/api src/db
 
 # Review findings
 # Fix critical and high-severity issues
 # Re-run audit to verify
-/maestro.security-audit src/auth
+/maestro:security-audit src/auth
 
 # Deploy once critical issues are resolved
 ```
 
-### Performance Analysis (/maestro.perf-check)
+### Performance Analysis (/maestro:perf-check)
 
 **Use Case**: Identify and fix performance bottlenecks.
 
 **Best Practices**:
-- Be specific about scope: `/maestro.perf-check src/api/tasks.js`
+- Be specific about scope: `/maestro:perf-check src/api/tasks.js`
 - Mention performance symptoms (slow response, high CPU, memory leaks)
 - Provide target metrics if known (e.g., "response time should be <200ms")
 - Implement high-impact, low-effort optimizations first
 
 **Example Workflow**:
 ```bash
-/maestro.perf-check src/api/tasks.js
+/maestro:perf-check src/api/tasks.js
 
 # Review bottlenecks:
 # 1. N+1 query problem (HIGH IMPACT, LOW EFFORT)
@@ -1228,8 +1232,8 @@ Maestro works out of the box with sensible defaults. To customize behavior, set 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MAESTRO_DEFAULT_MODEL` | `gemini-3-pro-preview` | Model used by all agents unless individually overridden |
-| `MAESTRO_WRITER_MODEL` | `gemini-3-flash-preview` | Model for technical-writer agent (cost-optimized) |
+| `MAESTRO_DEFAULT_MODEL` | _(inherit from main session)_ | Model override for agents dispatched via parallel execution (has no effect on sequential delegation) |
+| `MAESTRO_WRITER_MODEL` | _(inherit from main session)_ | Model override for the technical-writer agent in parallel execution (has no effect on sequential delegation) |
 | `MAESTRO_DEFAULT_TEMPERATURE` | `0.2` | Temperature for all agents (0.0-1.0) |
 | `MAESTRO_MAX_TURNS` | `25` | Maximum turns per subagent execution |
 | `MAESTRO_AGENT_TIMEOUT` | `10` | Timeout in minutes per subagent |
@@ -1238,9 +1242,16 @@ Maestro works out of the box with sensible defaults. To customize behavior, set 
 | `MAESTRO_AUTO_ARCHIVE` | `true` | Archive sessions on completion automatically |
 | `MAESTRO_VALIDATION_STRICTNESS` | `normal` | Validation mode: `strict`, `normal`, or `lenient` |
 | `MAESTRO_STATE_DIR` | `.gemini` | Directory for session state and plans |
-| `MAESTRO_MAX_CONCURRENT` | `5` | Max simultaneous agents in parallel dispatch |
-| `MAESTRO_STAGGER_DELAY` | `15` | Seconds between parallel agent launches |
+| `MAESTRO_MAX_CONCURRENT` | `0` (unlimited) | Max simultaneous agents in parallel dispatch |
+| `MAESTRO_STAGGER_DELAY` | `5` | Seconds between parallel agent launches |
+| `MAESTRO_GEMINI_EXTRA_ARGS` | _(none)_ | Extra Gemini CLI args forwarded to each parallel dispatch process (prefer `--policy`) |
 | `MAESTRO_EXECUTION_MODE` | `ask` | Phase 3 dispatch mode: `parallel`, `sequential`, or `ask` |
+
+You can set extension-scoped values interactively with:
+
+```bash
+gemini extensions config maestro
+```
 
 ### Configuration Examples
 
@@ -1269,6 +1280,13 @@ export MAESTRO_DISABLED_AGENTS=devops-engineer,performance-engineer
 export MAESTRO_EXECUTION_MODE=parallel
 ```
 
+**Forward extra Gemini CLI args to parallel dispatch**:
+```bash
+export MAESTRO_GEMINI_EXTRA_ARGS="--sandbox --policy .gemini/policies/maestro.toml"
+```
+
+Prefer `--policy` over deprecated `--allowed-tools`.
+
 **Custom state directory**:
 ```bash
 export MAESTRO_STATE_DIR=.maestro
@@ -1289,7 +1307,7 @@ export MAESTRO_VALIDATION_STRICTNESS=strict
 
 ## Tips and Best Practices
 
-### Effective Prompting for /maestro.orchestrate
+### Effective Prompting for /maestro:orchestrate
 
 **Be Specific**:
 - Good: "Build a REST API for a task management system with user authentication, task CRUD, and assignment features"
@@ -1303,33 +1321,33 @@ export MAESTRO_VALIDATION_STRICTNESS=strict
 - "Build a high-traffic API that can handle 10,000 requests per second"
 - "Build a secure API for handling PII with GDPR compliance"
 
-### When to Use /maestro.orchestrate vs Specialized Commands
+### When to Use /maestro:orchestrate vs Specialized Commands
 
 ```mermaid
 flowchart TD
     Start([Need Help?]) --> Complex{Complex<br/>multi-agent task?}
-    Complex -->|Yes| Orchestrate[/maestro.orchestrate]
+    Complex -->|Yes| Orchestrate[/maestro:orchestrate]
     Complex -->|No| HasPlan{Have existing<br/>plan?}
 
-    HasPlan -->|Yes| Execute[/maestro.execute]
+    HasPlan -->|Yes| Execute[/maestro:execute]
     HasPlan -->|No| Interrupted{Interrupted<br/>session?}
 
-    Interrupted -->|Yes| Resume[/maestro.resume]
+    Interrupted -->|Yes| Resume[/maestro:resume]
     Interrupted -->|No| CheckProgress{Check<br/>progress?}
 
-    CheckProgress -->|Yes| Status[/maestro.status]
+    CheckProgress -->|Yes| Status[/maestro:status]
     CheckProgress -->|No| Done{Done with<br/>session?}
 
-    Done -->|Yes| ArchiveCmd[/maestro.archive]
+    Done -->|Yes| ArchiveCmd[/maestro:archive]
     Done -->|No| SpecializedTask{What kind<br/>of task?}
 
-    SpecializedTask -->|Code review| Review[/maestro.review]
-    SpecializedTask -->|Bug investigation| Debug[/maestro.debug]
-    SpecializedTask -->|Performance issue| PerfCheck[/maestro.perf-check]
-    SpecializedTask -->|Security concern| SecurityAudit[/maestro.security-audit]
+    SpecializedTask -->|Code review| Review[/maestro:review]
+    SpecializedTask -->|Bug investigation| Debug[/maestro:debug]
+    SpecializedTask -->|Performance issue| PerfCheck[/maestro:perf-check]
+    SpecializedTask -->|Security concern| SecurityAudit[/maestro:security-audit]
 ```
 
-**Use /maestro.orchestrate when**:
+**Use /maestro:orchestrate when**:
 - Task requires multiple specialized agents
 - You need architectural design before implementation
 - Project is complex with dependencies between components
@@ -1407,13 +1425,13 @@ flowchart LR
 
 ### Managing Token Usage
 
-Token usage is tracked in session state and displayed in `/maestro.status` and completion summaries.
+Token usage is tracked in session state and displayed in `/maestro:status` and completion summaries.
 
 **Optimization Tips**:
-- Use `MAESTRO_WRITER_MODEL=gemini-3-flash-preview` for documentation (3x cheaper than Pro)
+- Set `MAESTRO_WRITER_MODEL` to a cost-optimized model for documentation agents in parallel dispatch
 - Limit agent turns with `MAESTRO_MAX_TURNS` for exploratory tasks
 - Break large tasks into smaller orchestrations to isolate token costs
-- Review token usage with `/maestro.status` before proceeding to expensive phases
+- Review token usage with `/maestro:status` before proceeding to expensive phases
 
 **Cost Awareness**:
 - Design dialogue is typically low-cost (single TechLead session)
@@ -1425,7 +1443,7 @@ Token usage is tracked in session state and displayed in `/maestro.status` and c
 
 ### Extension Not Loading
 
-**Symptom**: Maestro commands (`/maestro.orchestrate`, etc.) are not available in Gemini CLI.
+**Symptom**: Maestro commands (`/maestro:orchestrate`, etc.) are not available in Gemini CLI.
 
 **Diagnosis**:
 1. Verify the extension is linked:
@@ -1463,11 +1481,11 @@ Check `~/.gemini/settings.json` for:
 2. Add the `experimental` section (or update existing file)
 3. Save and restart Gemini CLI
 
-Maestro will offer to enable subagents automatically if missing.
+Maestro will not update this setting automatically; update `~/.gemini/settings.json` manually, then restart Gemini CLI.
 
 ### Session State Corrupted
 
-**Symptom**: `/maestro.resume` fails with YAML parsing errors.
+**Symptom**: `/maestro:resume` fails with YAML parsing errors.
 
 **Diagnosis**:
 Read the session state file:
@@ -1478,7 +1496,7 @@ Check for syntax errors in the YAML frontmatter (unmatched quotes, invalid inden
 
 **Solution**:
 1. **Manual Fix**: Edit `.gemini/state/active-session.md` to fix YAML syntax
-2. **Archive and Restart**: `/maestro.archive` to move the corrupted session, then start fresh with `/maestro.orchestrate`
+2. **Archive and Restart**: `/maestro:archive` to move the corrupted session, then start fresh with `/maestro:orchestrate`
 3. **Delete State**: Remove `.gemini/state/active-session.md` and start fresh (loses progress)
 
 ### Parallel Dispatch Fails
@@ -1525,7 +1543,7 @@ Check session state for timeout errors. Review `MAESTRO_AGENT_TIMEOUT` (default:
 
 2. Break complex phases into smaller sub-phases
 
-3. `/maestro.resume` to retry after increasing timeout
+3. `/maestro:resume` to retry after increasing timeout
 
 ### Validation Failures
 
@@ -1540,7 +1558,7 @@ Check session state for validation error logs. Common causes:
 **Solution**:
 1. Review error logs in session state
 2. Manually fix the issue
-3. `/maestro.resume` to retry validation
+3. `/maestro:resume` to retry validation
 4. Adjust validation strictness if needed:
    ```bash
    export MAESTRO_VALIDATION_STRICTNESS=lenient
@@ -1557,15 +1575,15 @@ Multiple agents tried to modify the same file (parallel execution with file over
 1. Maestro will stop and report conflict details
 2. Review which agents conflicted
 3. Manually resolve conflicts
-4. `/maestro.resume` with sequential mode to avoid future conflicts:
+4. `/maestro:resume` with sequential mode to avoid future conflicts:
    ```bash
    export MAESTRO_EXECUTION_MODE=sequential
-   /maestro.resume
+   /maestro:resume
    ```
 
 ### Cannot Find Active Session
 
-**Symptom**: `/maestro.resume` or `/maestro.status` reports "No active session found".
+**Symptom**: `/maestro:resume` or `/maestro:status` reports "No active session found".
 
 **Diagnosis**:
 Check if `active-session.md` exists:
@@ -1574,7 +1592,7 @@ ls .gemini/state/active-session.md
 ```
 
 **Solution**:
-- If file doesn't exist: Start a new orchestration with `/maestro.orchestrate`
+- If file doesn't exist: Start a new orchestration with `/maestro:orchestrate`
 - If file is in archive: Use the archived file path to review, or start fresh
 - Check `MAESTRO_STATE_DIR` if you've customized it:
   ```bash

@@ -1,13 +1,16 @@
 ---
 name: architect
-description: "System design specialist for architecture decisions, technology selection, and high-level component design"
 kind: local
+description: "System design specialist for architecture decisions, technology selection, and high-level component design. Use when the task requires evaluating architectural trade-offs, designing system components, selecting technology stacks, or planning service boundaries. For example: microservice decomposition, database schema design, or API contract planning."
 tools:
   - read_file
+  - list_directory
   - glob
-  - search_file_content
+  - grep_search
   - google_web_search
-model: gemini-3-pro-preview
+  - read_many_files
+  - ask_user
+  - web_fetch
 temperature: 0.3
 max_turns: 15
 timeout_mins: 5
@@ -81,14 +84,23 @@ Classify the system's scaling profile and map to architectural implications:
 
 ## Output Contract
 
-When completing your task, conclude with a structured report:
+When completing your task, conclude with a **Handoff Report** containing two parts:
 
-### Task Report
-- **Status**: success | failure | partial
-- **Files Created**: none
-- **Files Modified**: none
-- **Files Deleted**: none
-- **Validation**: skipped
-- **Validation Output**: N/A
-- **Errors**: [list of errors encountered, or "none"]
-- **Summary**: [1-2 sentence summary of what was accomplished]
+### Part 1 — Task Report
+- **Status**: success | partial | failure
+- **Objective Achieved**: [One sentence restating the task objective and whether it was fully met]
+- **Files Created**: [Absolute paths with one-line purpose each, or "none"]
+- **Files Modified**: [Absolute paths with one-line summary of what changed and why, or "none"]
+- **Files Deleted**: [Absolute paths with rationale, or "none"]
+- **Decisions Made**: [Choices made that were not explicitly specified in the delegation prompt, with rationale for each, or "none"]
+- **Validation**: pass | fail | skipped
+- **Validation Output**: [Command output or "N/A"]
+- **Errors**: [List with type, description, and resolution status, or "none"]
+- **Scope Deviations**: [Anything asked but not completed, or additional necessary work discovered but not performed, or "none"]
+
+### Part 2 — Downstream Context
+- **Key Interfaces Introduced**: [Type signatures and file locations, or "none"]
+- **Patterns Established**: [New patterns that downstream agents must follow for consistency, or "none"]
+- **Integration Points**: [Where and how downstream work should connect to this output, or "none"]
+- **Assumptions**: [Anything assumed that downstream agents should verify, or "none"]
+- **Warnings**: [Gotchas, edge cases, or fragile areas downstream agents should be aware of, or "none"]

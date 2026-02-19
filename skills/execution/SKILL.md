@@ -23,18 +23,42 @@ Before executing any phases in Phase 3:
 
 ## State File Access
 
-All reads of files within `<MAESTRO_STATE_DIR>` (including parallel dispatch results) must use the dedicated state I/O script to bypass ignore patterns:
+The `read_file` tool enforces `.gitignore` patterns via `shouldIgnoreFile()`, and `.gemini/` is typically gitignored. All reads of files within `<MAESTRO_STATE_DIR>` must use the shell script to bypass this restriction:
 
 ```bash
-run_shell_command: ./scripts/read-state.sh <relative-path>
+run_shell_command: ${extensionPath}/scripts/read-state.sh <relative-path>
 ```
+
+The command path must use `${extensionPath}` so orchestration works when the extension is installed outside the workspace root.
 
 This applies to:
 - Reading `summary.json` from parallel dispatch results
 - Reading individual agent `.json` output files
 - Reading `active-session.md` for state checks
 
-Never use `read_file` for paths inside `<MAESTRO_STATE_DIR>`.
+Use `write_file` directly for state writes — it does not enforce ignore patterns. Never use `read_file` for paths inside `<MAESTRO_STATE_DIR>`.
+
+## Hook Lifecycle During Execution
+
+Maestro hooks (`hooks/hooks.json`) fire automatically at agent boundaries. The orchestrator does not invoke hooks directly — the Gemini CLI triggers them based on lifecycle events.
+
+Transient hook state (active agent tracking under `/tmp/maestro-hooks/<session-id>/`) is managed lazily by agent hooks and stale-pruned during `BeforeAgent`.
+
+### Agent Turn Hooks
+
+- **BeforeAgent** (`hooks/before-agent.sh`): Fires before each agent turn. Detects the active agent (via `MAESTRO_CURRENT_AGENT` env var in parallel dispatch, or regex fallback in sequential delegation) and injects compact session phase/status context from `active-session.md` when available.
+- **AfterAgent** (`hooks/after-agent.sh`): Fires after each agent turn. Validates that the agent's response contains both `## Task Report` and `## Downstream Context` headings. Blocks and requests retry on first format violation; allows through on second failure to prevent infinite loops.
+
+### Sequential vs Parallel Hook Behavior
+
+| Aspect | Sequential Delegation | Parallel Dispatch |
+| --- | --- | --- |
+| Agent detection | Regex fallback on prompt content | `MAESTRO_CURRENT_AGENT` env var (set by `parallel-dispatch.sh`) |
+| Session context | Injected from shared session state | Injected from shared session state (same path) |
+| AfterAgent validation | Fires per turn in main session | Fires per turn in each independent `gemini` process |
+| Retry on format violation | Blocks main session, agent retries in-place | Blocks the individual parallel process |
+
+The orchestrator does not need to account for hooks in delegation prompts or execution logic — they operate transparently at the CLI level. However, the AfterAgent format enforcement means that all agents will be retried once if they omit the required handoff sections, which can add latency to execution.
 
 ## Phase Execution Protocol
 
@@ -45,35 +69,38 @@ For phases with dependencies (`blocked_by` is non-empty):
 1. Verify all blocking phases have `status: completed`
 2. Update the phase status to `in_progress` in session state
 3. Update `current_phase` in session state
-4. Delegate to the assigned agent(s) with full context
-5. Process the agent's Task Report
-6. Update session state with results (files changed, validation status, token usage)
-7. Transition phase status to `completed` or `failed`
+4. Call `write_todos` to reflect current phase progress before delegating
+5. Delegate to the assigned agent(s) with full context
+6. Process the agent's Task Report
+7. Update session state with results (files changed, validation status, token usage)
+8. Transition phase status to `completed` or `failed`
+9. Call `write_todos` to mark the phase complete after state update
 
 ### Parallel Execution
 
-For phases at the same dependency depth with no file overlap, use shell-based parallel dispatch via `scripts/parallel-dispatch.sh`. This spawns independent `gemini` CLI processes that execute concurrently, bypassing the sequential `delegate_to_agent` tool scheduler.
+For phases at the same dependency depth with no file overlap, use shell-based parallel dispatch via `${extensionPath}/scripts/parallel-dispatch.sh`. This spawns independent `gemini` CLI processes that execute concurrently, bypassing the sequential subagent tool invocation pattern.
 
 #### Parallel Dispatch Protocol
 
 1. Verify all blocking phases for every phase in the batch are completed
 2. Update all batch phases to `in_progress` simultaneously in session state
-3. Ensure the batch-specific dispatch directory exists before writing prompt files:
+3. Call `write_todos` with a single composite item: "Executing batch: Phase N, M, O" as `in_progress` (only one todo can be `in_progress` at a time — the CLI enforces this constraint)
+4. Ensure the batch-specific dispatch directory exists before writing prompt files:
    ```bash
    mkdir -p <state_dir>/parallel/<batch-id>/prompts
    ```
-4. Write each agent's full delegation prompt (including injected base protocol, context chain, and downstream consumer declaration) to its prompt file
-5. Invoke the parallel dispatch script via `run_shell_command`:
+5. Write each agent's full delegation prompt (including injected base protocol, context chain, and downstream consumer declaration) to its prompt file
+6. Invoke the parallel dispatch script via `run_shell_command`:
    ```bash
-   ./scripts/parallel-dispatch.sh <state_dir>/parallel/<batch-id>
+   ${extensionPath}/scripts/parallel-dispatch.sh <state_dir>/parallel/<batch-id>
    ```
-6. The script spawns one `gemini -p <prompt> --yolo --output-format json` process per prompt file
-7. All agents execute concurrently as independent CLI processes
-8. The script waits for all agents, collects exit codes, and writes `results/summary.json`
-9. Read the batch summary via run_shell_command: `./scripts/read-state.sh <state_dir>/parallel/<batch-id>/results/summary.json`
-10. For each agent, read its JSON output via run_shell_command: `./scripts/read-state.sh <state_dir>/parallel/<batch-id>/results/<agent-name>.json` and parse the Task Report
-11. Update session state for all phases in the batch
-12. Only proceed to the next batch when all phases in the current batch are completed
+7. The script spawns one `gemini --approval-mode=yolo --output-format json` process per prompt file and streams each full prompt payload over stdin
+8. All agents execute concurrently as independent CLI processes
+9. The script waits for all agents, collects exit codes, and writes `results/summary.json`
+10. Read the batch summary via run_shell_command: `${extensionPath}/scripts/read-state.sh <state_dir>/parallel/<batch-id>/results/summary.json`
+11. For each agent, read its JSON output via run_shell_command: `${extensionPath}/scripts/read-state.sh <state_dir>/parallel/<batch-id>/results/<agent-name>.json` and parse the Task Report
+12. Update session state for all phases in the batch
+13. Only proceed to the next batch when all phases in the current batch are completed
 
 #### Parallel Dispatch Constraints
 
@@ -86,7 +113,7 @@ For phases at the same dependency depth with no file overlap, use shell-based pa
 
 #### Fallback to Sequential
 
-If parallel dispatch fails (script not found, `gemini` CLI not available in PATH, or all agents fail), fall back to sequential execution via `delegate_to_agent` and record the fallback in session state.
+If parallel dispatch fails (script not found, `gemini` CLI not available in PATH, or all agents fail), fall back to sequential execution via direct subagent tool invocation and record the fallback in session state.
 
 ### Progress Context
 
@@ -190,6 +217,32 @@ When all phases are completed:
 2. Verify all deliverables from the implementation plan are accounted for
 3. Cross-reference the file manifest against expected outputs
 
+### Final Code Review Gate (Change-Triggered)
+
+Run this gate after all execution phases are `completed` and before archival.
+
+1. Aggregate unique paths from all phase file manifests (`files_created`, `files_modified`, `files_deleted`)
+2. Classify each path:
+   - **Documentation-only**: `docs/**`, `*.md`, `*.txt`, `*.rst`, `*.adoc`
+   - **Review-required**: all other paths (source, tests, scripts, build/deploy/config)
+3. If no review-required paths exist, record: `Final code review skipped (documentation-only changes)` and continue
+4. If review-required paths exist:
+   - Activate the `code-review` skill
+   - Delegate to the `code-reviewer` agent with:
+     - review-required file paths
+     - relevant implementation-plan objectives/acceptance criteria
+     - latest validation results from execution
+   - Require explicit assessment of both code quality risk and conformance to approved plan/design
+5. Parse review findings by severity:
+   - `Critical` or `Major`: blocking
+   - `Minor` and `Suggestion`: non-blocking
+6. For blocking findings:
+   - Re-open the owning phase (or create a remediation phase)
+   - Delegate fixes to implementation agent(s)
+   - Run validation
+   - Re-run this Final Code Review Gate
+7. Persist final review status and severity counts in session state/log before completion
+
 ### Deliverable Verification
 
 For each phase in the implementation plan:
@@ -225,6 +278,10 @@ Token Usage:
 
 Deviations from Plan:
 - [any changes from original plan, or "None"]
+
+Code Review Gate:
+- Status: [passed | blocked | skipped]
+- Findings: Critical [n], Major [n], Minor [n], Suggestion [n]
 
 Recommended Next Steps:
 - [actionable follow-up items]

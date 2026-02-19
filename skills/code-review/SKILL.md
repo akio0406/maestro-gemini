@@ -5,25 +5,27 @@ description: Standalone code review methodology for structured, severity-classif
 
 # Code Review Skill
 
-Activate this skill when performing standalone code reviews via the `/maestro.review` command or during Phase 3 code quality gates. This skill provides the methodology for scoping, executing, and reporting code reviews.
+Activate this skill when performing standalone code reviews via the `/maestro:review` command or during orchestration quality gates (post-phase checks and final completion gate). This skill provides the methodology for scoping, executing, and reporting code reviews.
 
 ## Scope Detection Protocol
 
 Determine review scope using the following priority order:
 
-1. **User-specified paths**: If the user provides file paths or glob patterns, review those exclusively
+1. **User-specified paths**: If the user provides file paths or glob patterns, expand glob patterns using the `glob` tool to resolve them to concrete file paths before delegating to the code-reviewer agent
 2. **Staged changes**: If `git diff --staged` produces output, review staged changes
 3. **Last commit diff**: If no staged changes exist, review the last commit via `git diff HEAD~1`
 4. **Fallback**: If none of the above yield content, ask the user to specify scope
 
 Always confirm the detected scope with the user before proceeding.
 
+If scope is provided as file paths and a git diff is empty for some paths (for example, new unstaged files), include those files' current contents directly in review context so they are still reviewed.
+
 ## Review Orchestration
 
 ### Delegation Flow
 
 1. Detect review scope using the protocol above
-2. Gather the full diff content for the detected scope
+2. Gather the full diff content for the detected scope, and include current file contents when diff content is unavailable for scoped files
 3. Delegate to the `code-reviewer` agent with:
    - The full diff content
    - File paths involved

@@ -1,6 +1,78 @@
 {
   "name": "maestro",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Multi-agent development orchestration platform — 12 specialists, 4-phase orchestration, parallel dispatch, persistent sessions, and standalone review/debug/security/perf commands",
-  "contextFileName": "GEMINI.md"
+  "contextFileName": "GEMINI.md",
+  "settings": [
+    {
+      "name": "Default Model",
+      "description": "Override the model for parallel-dispatched agents (e.g., gemini-2.5-pro). Sequential subagent delegation inherits the main session model.",
+      "envVar": "MAESTRO_DEFAULT_MODEL"
+    },
+    {
+      "name": "Writer Model",
+      "description": "Override the model for the technical-writer agent in parallel dispatch only.",
+      "envVar": "MAESTRO_WRITER_MODEL"
+    },
+    {
+      "name": "Default Temperature",
+      "description": "Override the temperature for all agent delegation prompts (0.0-2.0).",
+      "envVar": "MAESTRO_DEFAULT_TEMPERATURE"
+    },
+    {
+      "name": "Max Agent Turns",
+      "description": "Maximum number of turns per agent invocation.",
+      "envVar": "MAESTRO_MAX_TURNS"
+    },
+    {
+      "name": "Agent Timeout",
+      "description": "Timeout in minutes for each agent invocation.",
+      "envVar": "MAESTRO_AGENT_TIMEOUT"
+    },
+    {
+      "name": "Disabled Agents",
+      "description": "Comma-separated list of agent names to exclude from implementation planning.",
+      "envVar": "MAESTRO_DISABLED_AGENTS"
+    },
+    {
+      "name": "Max Retries",
+      "description": "Maximum retry attempts per phase before escalating to user.",
+      "envVar": "MAESTRO_MAX_RETRIES"
+    },
+    {
+      "name": "Auto Archive",
+      "description": "Automatically archive session state on successful completion (true/false).",
+      "envVar": "MAESTRO_AUTO_ARCHIVE"
+    },
+    {
+      "name": "Validation Strictness",
+      "description": "Post-phase validation strictness level (normal/strict).",
+      "envVar": "MAESTRO_VALIDATION_STRICTNESS"
+    },
+    {
+      "name": "State Directory",
+      "description": "Base directory for session state and plans (default: .gemini).",
+      "envVar": "MAESTRO_STATE_DIR"
+    },
+    {
+      "name": "Max Concurrent",
+      "description": "Maximum agents running simultaneously in parallel dispatch (0 = unlimited).",
+      "envVar": "MAESTRO_MAX_CONCURRENT"
+    },
+    {
+      "name": "Stagger Delay",
+      "description": "Seconds between parallel agent launches.",
+      "envVar": "MAESTRO_STAGGER_DELAY"
+    },
+    {
+      "name": "Extra Gemini Args",
+      "description": "Space-separated Gemini CLI flags forwarded to each parallel dispatch process (example: --sandbox --policy .gemini/policies/maestro.toml).",
+      "envVar": "MAESTRO_GEMINI_EXTRA_ARGS"
+    },
+    {
+      "name": "Execution Mode",
+      "description": "Phase 3 dispatch mode: 'parallel' (concurrent agents), 'sequential' (one at a time), or 'ask' (prompt each time). Default: ask.",
+      "envVar": "MAESTRO_EXECUTION_MODE"
+    }
+  ]
 }

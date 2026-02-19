@@ -12,8 +12,8 @@ Activate this skill when delegating work to subagents during orchestration execu
 Before constructing any delegation prompt, inject the shared agent base protocol:
 
 ### Injection Steps
-1. Read `protocols/agent-base-protocol.md`
-2. Read `protocols/filesystem-safety-protocol.md`
+1. Read `agent-base-protocol.md` from `skills/delegation/protocols/`
+2. Read `filesystem-safety-protocol.md` from `skills/delegation/protocols/`
 3. Prepend both protocols to the delegation prompt (base protocol first, then filesystem safety) — these appear before the task-specific content
 4. For each phase listed in the current phase's `blocked_by`, read `phases[].downstream_context` from session state and include it in the prompt
 5. If any required `downstream_context` is missing, include an explicit placeholder noting the missing dependency context (never omit silently)
@@ -54,28 +54,16 @@ This primes the agent to structure their Downstream Context section for maximum 
 
 Before constructing any delegation prompt, resolve configurable parameters:
 
-1. Read the agent's base definition frontmatter (`model`, `temperature`, `max_turns`, `timeout_mins`)
-2. Apply environment variable overrides per the orchestrator's Delegation Override Protocol:
-   - `MAESTRO_DEFAULT_MODEL` → overrides `model` for all agents
-   - `MAESTRO_WRITER_MODEL` → overrides `model` for `technical-writer` only (takes precedence over `MAESTRO_DEFAULT_MODEL`)
+1. Read the agent's base definition frontmatter (`temperature`, `max_turns`, `timeout_mins`)
+2. Apply environment variable overrides:
    - `MAESTRO_DEFAULT_TEMPERATURE` → overrides `temperature` for all agents
    - `MAESTRO_MAX_TURNS` → overrides `max_turns` for all agents
    - `MAESTRO_AGENT_TIMEOUT` → overrides `timeout_mins` for all agents
-3. Include resolved values in the delegation prompt metadata:
-   ```
-   Agent: [agent-name]
-   Model: [resolved model]
-   Temperature: [resolved temperature]
-   Max Turns: [resolved max_turns]
-   Timeout: [resolved timeout] minutes
-   ```
-4. If the agent appears in `MAESTRO_DISABLED_AGENTS`, do not construct a delegation prompt — report to the orchestrator that the agent is disabled
-
-### Override Precedence
-
-Agent-specific env var > General env var > Agent frontmatter default
-
-Example: For `technical-writer`, if both `MAESTRO_DEFAULT_MODEL=gemini-2.5-pro` and `MAESTRO_WRITER_MODEL=gemini-3-flash-preview` are set, use `gemini-3-flash-preview`.
+3. **Model selection**:
+   - **Sequential delegation**: Model is inherited from the main session. Cannot be overridden per-agent via hooks.
+   - **Parallel dispatch**: `MAESTRO_DEFAULT_MODEL` is passed as `--model` flag. `MAESTRO_WRITER_MODEL` overrides for `technical-writer`.
+4. Include resolved values in the delegation prompt metadata
+5. If the agent appears in `MAESTRO_DISABLED_AGENTS`, do not construct a delegation prompt — report to the orchestrator that the agent is disabled
 
 
 ## Delegation Prompt Template
@@ -152,14 +140,14 @@ Explicitly state what the agent must NOT do:
 
 ## Parallel Delegation
 
-Parallel delegation uses `scripts/parallel-dispatch.sh` to spawn independent `gemini` CLI processes. Instead of calling `delegate_to_agent` (which is sequential), the orchestrator writes prompt files to disk and invokes the dispatch script.
+Parallel delegation uses `${extensionPath}/scripts/parallel-dispatch.sh` to spawn independent `gemini` CLI processes. Instead of invoking subagent tools sequentially, the orchestrator writes prompt files to disk and invokes the dispatch script.
 
 ### Prompt File Construction
 
 For each agent in a parallel batch, write a complete prompt file to `<state_dir>/parallel/<batch-id>/prompts/<agent-name>.txt`:
 
 ```
-[Injected base protocol from protocols/agent-base-protocol.md]
+[Injected base protocol from `agent-base-protocol.md` and `filesystem-safety-protocol.md` in `skills/delegation/protocols/`]
 
 Task: [One-line description]
 
@@ -200,10 +188,18 @@ Prompt filenames must follow these rules:
 
 ### Tool Restriction Enforcement
 
-Parallel-dispatched agents run with `--yolo` (auto-approve all tool calls), which bypasses the tool permission model defined in agent frontmatter. To enforce least-privilege, every parallel dispatch prompt **must** include an explicit tool restriction block. The required prompt structure is:
+Maestro enforces tool permissions at two levels:
 
-1. Agent Base Protocol (from `protocols/agent-base-protocol.md`)
-2. Filesystem Safety Protocol (from `protocols/filesystem-safety-protocol.md`)
+**Level 1: Native enforcement (primary)**
+
+Tool permissions are enforced natively via the `tools:` array in each agent's YAML frontmatter definition (`agents/<agent-name>.md`). The Gemini CLI restricts each subagent to exactly those tools listed, regardless of what the prompt requests. This works for both sequential and parallel delegation.
+
+**Level 2: Prompt-based enforcement (defense-in-depth)**
+
+Parallel-dispatched agents run with `--approval-mode=yolo` (auto-approve all tool calls). As defense-in-depth alongside native enforcement, every parallel dispatch prompt **must** still include an explicit tool restriction block:
+
+1. Agent Base Protocol (read `agent-base-protocol.md` from `skills/delegation/protocols/`)
+2. Filesystem Safety Protocol (read `filesystem-safety-protocol.md` from `skills/delegation/protocols/`)
 3. **TOOL RESTRICTIONS block (immediately here, before any task content)**
 4. **FILE WRITING RULES block (immediately after tool restrictions)**
 5. Context chain from prior phases
@@ -222,7 +218,7 @@ Do NOT use any tools not listed above. Specifically:
 Violation of these restrictions constitutes a security boundary breach.
 ```
 
-Populate the tool list by reading the agent's definition file (`agents/<agent-name>.md`) and extracting the `tools` array from the YAML frontmatter. This is the only mechanism for enforcing tool permissions on parallel-dispatched agents until the Gemini CLI supports runtime tool restriction flags.
+Populate the tool list by reading the agent's definition file (`agents/<agent-name>.md`) and extracting the `tools` array from the YAML frontmatter.
 
 The file writing rules block template:
 
@@ -238,10 +234,10 @@ This block reinforces the Agent Base Protocol's File Writing Rule directly in ev
 ### Dispatch Invocation
 
 ```bash
-./scripts/parallel-dispatch.sh <state_dir>/parallel/<batch-id>
+${extensionPath}/scripts/parallel-dispatch.sh <state_dir>/parallel/<batch-id>
 ```
 
-The script handles spawning, waiting, timeout enforcement, and result collection. See `scripts/parallel-dispatch.sh` for the full implementation.
+The script handles spawning, waiting, timeout enforcement, and result collection. See `${extensionPath}/scripts/parallel-dispatch.sh` for the full implementation.
 
 ### Non-Overlapping File Ownership
 When delegating to multiple agents in parallel, ensure no two agents are assigned the same file. Each file must have exactly one owner in a parallel batch.
@@ -258,6 +254,45 @@ All agents in a parallel batch must complete before:
 - Reserve shared files (barrel exports, configuration, dependency manifests) for a single agent or a post-batch update step
 - If two phases must modify the same file, they cannot run in parallel — execute them sequentially
 - Parallel agents must NOT create git commits — the orchestrator commits after validating the batch
+
+## Hook Integration
+
+Maestro hooks fire at agent boundaries during delegation, providing context injection and output validation. Understanding hook behavior is essential for constructing correct delegation prompts.
+
+### Agent Tracking
+
+The `BeforeAgent` hook (`hooks/before-agent.sh`) tracks which agent is currently executing:
+
+- **Parallel dispatch**: `MAESTRO_CURRENT_AGENT` is exported per subprocess by `parallel-dispatch.sh`. The hook reads this directly from the environment — no prompt parsing needed.
+- **Sequential delegation**: The env var is not set. The hook falls back to regex-based detection, scanning the delegation prompt for patterns like `delegate to <agent>` or `@<agent>`.
+
+The detected agent name is persisted to `/tmp/maestro-hooks/<session-id>/active-agent` and cleared by the `AfterAgent` hook after the turn completes.
+
+### Session Context Injection
+
+When an active orchestration session exists, the `BeforeAgent` hook parses `<MAESTRO_STATE_DIR>/state/active-session.md` and injects a compact context line into the agent's turn:
+
+```
+Active session: current_phase=3, status=in_progress
+```
+
+This gives delegated agents awareness of where they sit in the orchestration workflow without requiring explicit context in every delegation prompt. The injection is automatic and requires no action from the orchestrator.
+
+### Handoff Format Enforcement
+
+The `AfterAgent` hook (`hooks/after-agent.sh`) validates that every subagent response contains both required handoff sections:
+
+- `## Task Report` (or `# Task Report`)
+- `## Downstream Context` (or `# Downstream Context`)
+
+If either heading is missing:
+
+1. **First failure**: The hook blocks the response and requests a retry with a diagnostic message specifying which section is missing.
+2. **Second failure** (`stop_hook_active=true`): The hook allows the malformed response through to prevent infinite retry loops, logging a warning.
+
+This enforcement is the runtime complement to the Output Handoff Contract defined in the agent-base-protocol. Delegation prompts do not need to re-state the retry mechanism — the hook handles it transparently.
+
+**Exception**: The TechLead/orchestrator agent is excluded from validation. Only delegated subagents are subject to format enforcement.
 
 ## Validation Criteria Templates
 
