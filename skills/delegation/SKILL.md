@@ -61,7 +61,7 @@ Before constructing any delegation prompt, resolve configurable parameters:
    - `MAESTRO_AGENT_TIMEOUT` → overrides `timeout_mins` for all agents
 3. **Model selection**:
    - **Sequential delegation**: Model is inherited from the main session. Cannot be overridden per-agent via hooks.
-   - **Parallel dispatch**: `MAESTRO_DEFAULT_MODEL` is passed as `--model` flag. `MAESTRO_WRITER_MODEL` overrides for `technical-writer`.
+   - **Parallel dispatch**: `MAESTRO_DEFAULT_MODEL` is passed as `-m` flag. `MAESTRO_WRITER_MODEL` overrides for `technical_writer`.
 4. Include resolved values in the delegation prompt metadata
 5. If the agent appears in `MAESTRO_DISABLED_AGENTS`, do not construct a delegation prompt — report to the orchestrator that the agent is disabled
 
@@ -126,21 +126,21 @@ Explicitly state what the agent must NOT do:
 | Task Domain | Agent | Key Capability |
 |-------------|-------|---------------|
 | System architecture, component design | architect | Read-only analysis, architecture patterns |
-| API contracts, endpoint design | api-designer | Read-only, REST/GraphQL expertise |
+| API contracts, endpoint design | api_designer | Read-only, REST/GraphQL expertise |
 | Feature implementation, coding | coder | Full read/write/shell access |
-| Code quality assessment | code-reviewer | Read-only, verified findings |
-| Database schema, queries, ETL | data-engineer | Full read/write/shell access |
+| Code quality assessment | code_reviewer | Read-only, verified findings |
+| Database schema, queries, ETL | data_engineer | Full read/write/shell access |
 | Bug investigation, root cause | debugger | Read + shell for investigation |
-| CI/CD, infrastructure, deployment | devops-engineer | Full read/write/shell access |
-| Performance analysis, profiling | performance-engineer | Read + shell for profiling |
+| CI/CD, infrastructure, deployment | devops_engineer | Full read/write/shell access |
+| Performance analysis, profiling | performance_engineer | Read + shell for profiling |
 | Code restructuring, modernization | refactor | Read/write, no shell |
-| Security assessment, vulnerability | security-engineer | Read + shell for scanning |
+| Security assessment, vulnerability | security_engineer | Read + shell for scanning |
 | Test creation, TDD, coverage | tester | Full read/write/shell access |
-| Documentation, READMEs, guides | technical-writer | Read/write, no shell |
+| Documentation, READMEs, guides | technical_writer | Read/write, no shell |
 
 ## Parallel Delegation
 
-Parallel delegation uses `${extensionPath}/scripts/parallel-dispatch.sh` to spawn independent `gemini` CLI processes. Instead of invoking subagent tools sequentially, the orchestrator writes prompt files to disk and invokes the dispatch script.
+Parallel delegation uses `node ${extensionPath}/scripts/parallel-dispatch.js` to spawn independent `gemini` CLI processes. Instead of invoking subagent tools sequentially, the orchestrator writes prompt files to disk and invokes the dispatch script.
 
 ### Prompt File Construction
 
@@ -181,8 +181,8 @@ Each prompt must be **fully self-contained** — the agent runs as an independen
 
 Prompt filenames must follow these rules:
 
-- Use **hyphens**, not underscores: `technical-writer.txt`, not `technical_writer.txt`
-- The filename (minus `.txt` extension) must exactly match an agent definition filename in `agents/`
+- Prefer **underscores** over hyphens: `technical_writer.txt`, not `technical-writer.txt` (hyphens are normalized to underscores automatically, but underscores match agent filenames directly)
+- The filename (minus `.txt` extension) must match an agent definition filename in `agents/` (after hyphen-to-underscore normalization)
 - The dispatch script validates agent names at runtime and rejects unrecognized names with a list of available agents
 - This validation catches typos before they waste an API call and a timeout window
 
@@ -234,10 +234,10 @@ This block reinforces the Agent Base Protocol's File Writing Rule directly in ev
 ### Dispatch Invocation
 
 ```bash
-${extensionPath}/scripts/parallel-dispatch.sh <state_dir>/parallel/<batch-id>
+node ${extensionPath}/scripts/parallel-dispatch.js <state_dir>/parallel/<batch-id>
 ```
 
-The script handles spawning, waiting, timeout enforcement, and result collection. See `${extensionPath}/scripts/parallel-dispatch.sh` for the full implementation.
+The script handles spawning, waiting, timeout enforcement, and result collection. See `${extensionPath}/scripts/parallel-dispatch.js` for the full implementation.
 
 ### Non-Overlapping File Ownership
 When delegating to multiple agents in parallel, ensure no two agents are assigned the same file. Each file must have exactly one owner in a parallel batch.
@@ -261,12 +261,12 @@ Maestro hooks fire at agent boundaries during delegation, providing context inje
 
 ### Agent Tracking
 
-The `BeforeAgent` hook (`hooks/before-agent.sh`) tracks which agent is currently executing:
+The `BeforeAgent` hook (`hooks/before-agent.js`) tracks which agent is currently executing:
 
-- **Parallel dispatch**: `MAESTRO_CURRENT_AGENT` is exported per subprocess by `parallel-dispatch.sh`. The hook reads this directly from the environment — no prompt parsing needed.
+- **Parallel dispatch**: `MAESTRO_CURRENT_AGENT` is exported per subprocess by `parallel-dispatch.js`. The hook reads this directly from the environment — no prompt parsing needed.
 - **Sequential delegation**: The env var is not set. The hook falls back to regex-based detection, scanning the delegation prompt for patterns like `delegate to <agent>` or `@<agent>`.
 
-The detected agent name is persisted to `/tmp/maestro-hooks/<session-id>/active-agent` and cleared by the `AfterAgent` hook after the turn completes.
+The detected agent name is persisted to `/tmp/maestro-hooks/<session-id>/active-agent` and cleared by the `AfterAgent` hook on every allowed response (both successful validation and retry allow-through). On deny (malformed output), the active agent is preserved to enable re-validation on retry.
 
 ### Session Context Injection
 
@@ -280,7 +280,7 @@ This gives delegated agents awareness of where they sit in the orchestration wor
 
 ### Handoff Format Enforcement
 
-The `AfterAgent` hook (`hooks/after-agent.sh`) validates that every subagent response contains both required handoff sections:
+The `AfterAgent` hook (`hooks/after-agent.js`) validates that every subagent response contains both required handoff sections:
 
 - `## Task Report` (or `# Task Report`)
 - `## Downstream Context` (or `# Downstream Context`)
@@ -288,7 +288,7 @@ The `AfterAgent` hook (`hooks/after-agent.sh`) validates that every subagent res
 If either heading is missing:
 
 1. **First failure**: The hook blocks the response and requests a retry with a diagnostic message specifying which section is missing.
-2. **Second failure** (`stop_hook_active=true`): The hook allows the malformed response through to prevent infinite retry loops, logging a warning.
+2. **Second failure** (`stop_hook_active=true`, mapped to `stopHookActive` in JS): The hook allows the malformed response through to prevent infinite retry loops, logging a warning.
 
 This enforcement is the runtime complement to the Output Handoff Contract defined in the agent-base-protocol. Delegation prompts do not need to re-state the retry mechanism — the hook handles it transparently.
 
@@ -296,7 +296,7 @@ This enforcement is the runtime complement to the Output Handoff Contract define
 
 ## Validation Criteria Templates
 
-### For Implementation Agents (coder, data-engineer, devops-engineer)
+### For Implementation Agents (coder, data_engineer, devops_engineer)
 ```
 Validation: [build command] && [lint command] && [test command]
 ```
@@ -313,13 +313,13 @@ Validation: [test command]
 Verify: All new tests pass, report coverage metrics
 ```
 
-### For Read-Only Agents (architect, api-designer, code-reviewer, debugger, performance-engineer, security-engineer)
+### For Assessment Agents (architect, api_designer, code_reviewer, debugger, performance_engineer, security_engineer)
 ```
-Validation: N/A (read-only assessment)
+Validation: N/A (assessment-only — no write tools)
 Verify: Findings reference specific files and line numbers
 ```
 
-### For Documentation Agents (technical-writer)
+### For Documentation Agents (technical_writer)
 ```
 Validation: Verify all links resolve, code examples are syntactically valid
 ```

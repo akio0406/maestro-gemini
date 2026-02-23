@@ -1,6 +1,6 @@
 {
   "name": "maestro",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Multi-agent development orchestration platform — 12 specialists, 4-phase orchestration, parallel dispatch, persistent sessions, and standalone review/debug/security/perf commands",
   "contextFileName": "GEMINI.md",
   "settings": [
@@ -11,11 +11,11 @@
     },
     {
       "name": "Writer Model",
-      "description": "Override the model for the technical-writer agent in parallel dispatch only.",
+      "description": "Override the model for the technical_writer agent in parallel dispatch only.",
       "envVar": "MAESTRO_WRITER_MODEL"
     },
     {
-      "name": "Default Temperature",
+      "name": "Temperature",
       "description": "Override the temperature for all agent delegation prompts (0.0-2.0).",
       "envVar": "MAESTRO_DEFAULT_TEMPERATURE"
     },
@@ -45,8 +45,8 @@
       "envVar": "MAESTRO_AUTO_ARCHIVE"
     },
     {
-      "name": "Validation Strictness",
-      "description": "Post-phase validation strictness level (normal/strict).",
+      "name": "Validation",
+      "description": "Post-phase validation strictness level (strict/normal/lenient).",
       "envVar": "MAESTRO_VALIDATION_STRICTNESS"
     },
     {
@@ -65,7 +65,7 @@
       "envVar": "MAESTRO_STAGGER_DELAY"
     },
     {
-      "name": "Extra Gemini Args",
+      "name": "Extra CLI Args",
       "description": "Space-separated Gemini CLI flags forwarded to each parallel dispatch process (example: --sandbox --policy .gemini/policies/maestro.toml).",
       "envVar": "MAESTRO_GEMINI_EXTRA_ARGS"
     },

@@ -15,7 +15,7 @@ tools:
   - read_file
   - write_file
   - run_shell_command
-temperature: 0.2
+temperature: 0.2  # most agents; architect, api_designer, technical_writer use 0.3
 max_turns: 25
 timeout_mins: 10
 ---
@@ -44,16 +44,16 @@ Every agent has this baseline:
 | Agent | Additional Tools Beyond Baseline | max_turns | timeout_mins |
 | --- | --- | --- | --- |
 | `architect` | `google_web_search`, `web_fetch` | 15 | 5 |
-| `api-designer` | `google_web_search`, `web_fetch` | 15 | 5 |
-| `code-reviewer` | none | 15 | 5 |
+| `api_designer` | `google_web_search`, `web_fetch` | 15 | 5 |
+| `code_reviewer` | none | 15 | 5 |
 | `coder` | `write_file`, `replace`, `run_shell_command`, `write_todos`, `activate_skill` | 25 | 10 |
-| `data-engineer` | `write_file`, `replace`, `run_shell_command`, `write_todos`, `google_web_search` | 20 | 8 |
+| `data_engineer` | `write_file`, `replace`, `run_shell_command`, `write_todos`, `google_web_search` | 20 | 8 |
 | `debugger` | `run_shell_command`, `write_todos` | 20 | 8 |
-| `devops-engineer` | `write_file`, `replace`, `run_shell_command`, `google_web_search`, `write_todos`, `web_fetch` | 20 | 8 |
-| `performance-engineer` | `run_shell_command`, `google_web_search`, `write_todos`, `web_fetch` | 20 | 8 |
+| `devops_engineer` | `write_file`, `replace`, `run_shell_command`, `google_web_search`, `write_todos`, `web_fetch` | 20 | 8 |
+| `performance_engineer` | `run_shell_command`, `google_web_search`, `write_todos`, `web_fetch` | 20 | 8 |
 | `refactor` | `write_file`, `replace`, `write_todos`, `activate_skill` | 25 | 10 |
-| `security-engineer` | `run_shell_command`, `google_web_search`, `web_fetch`, `write_todos` | 20 | 8 |
-| `technical-writer` | `write_file`, `replace`, `google_web_search`, `write_todos` | 15 | 5 |
+| `security_engineer` | `run_shell_command`, `google_web_search`, `web_fetch`, `write_todos` | 20 | 8 |
+| `technical_writer` | `write_file`, `replace`, `google_web_search`, `write_todos` | 15 | 5 |
 | `tester` | `write_file`, `replace`, `run_shell_command`, `write_todos`, `activate_skill`, `google_web_search` | 25 | 10 |
 
 ## Delegation Protocol Injection
@@ -81,22 +81,22 @@ This standardizes:
 ### Parallel Dispatch
 
 - Delegation is materialized into prompt files
-- `scripts/parallel-dispatch.sh` starts independent `gemini` processes
+- `node scripts/parallel-dispatch.js` starts independent `gemini` processes
 - Per-agent model override is supported through dispatch flags:
   - `MAESTRO_DEFAULT_MODEL`
-  - `MAESTRO_WRITER_MODEL` (technical-writer only)
+  - `MAESTRO_WRITER_MODEL` (technical_writer only)
 
 ## Active-Agent Tracking and Hook Integration
 
 Parallel dispatch exports `MAESTRO_CURRENT_AGENT` per process. Hooks consume that identity to enforce middleware behavior:
 
-- `hooks/before-agent.sh` stores active agent in `/tmp/maestro-hooks/<session-id>/active-agent`
-- `hooks/after-agent.sh` reads active agent and validates handoff format
-- If `MAESTRO_CURRENT_AGENT` is absent (typical sequential path), before-hook falls back to delegation-pattern detection against prompt text
+- `hooks/before-agent.js` detects the active agent via `detectAgentFromPrompt()`: checks `MAESTRO_CURRENT_AGENT` env var first (set by parallel dispatch), then falls back to regex pattern matching on prompt text. Stores the resolved agent name in the hook state directory under `<session-id>/active-agent`.
+- `hooks/after-agent.js` reads the active agent, validates handoff format, and clears the active agent from hook state. Validation is skipped for `techlead` and `orchestrator` agents.
+- Hook state is stored under `/tmp/maestro-hooks` on Unix or `<os.tmpdir()>/maestro-hooks` on Windows.
 
 ## Practical Constraints
 
-- Agent filenames and names must remain kebab-case and consistent (`technical-writer.md` -> `technical-writer.txt`)
+- Agent definition filenames use snake_case (e.g., `agents/technical_writer.md`). Parallel dispatch prompt filenames must match the agent definition name after normalization — hyphens are automatically converted to underscores (e.g., both `prompts/technical_writer.txt` and `prompts/technical-writer.txt` map to agent `technical_writer`).
 - Parallel batches must avoid overlapping file ownership
 - Tool permissions are enforced by `tools:` frontmatter, not prompt text alone
 - Prompt-level tool restriction text remains defense-in-depth, not the primary boundary

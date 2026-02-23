@@ -67,7 +67,7 @@ Every agent must conclude with a **Handoff Report** containing two parts. This r
 ### Part 1 — Task Report
 
 ```
-### Task Report
+## Task Report
 - **Status**: success | partial | failure
 - **Objective Achieved**: [One sentence restating the task objective and whether it was fully met]
 - **Files Created**: [Absolute paths with one-line purpose each, or "none"]
@@ -85,7 +85,7 @@ Every agent must conclude with a **Handoff Report** containing two parts. This r
 Populate this section when your output feeds into subsequent phases. Read-only agents populate this with findings structured as actionable items.
 
 ```
-### Downstream Context
+## Downstream Context
 - **Key Interfaces Introduced**: [Type signatures and file locations, or "none"]
 - **Patterns Established**: [New patterns that downstream agents must follow for consistency, or "none"]
 - **Integration Points**: [Where and how downstream work should connect to this output — specific files, functions, endpoints, or "none"]
@@ -102,7 +102,7 @@ Populate this section when your output feeds into subsequent phases. Read-only a
 
 ### Hook Enforcement
 
-The `AfterAgent` hook (`hooks/after-agent.sh`) validates this contract at runtime. After every agent turn, the hook checks for both `## Task Report` and `## Downstream Context` headings in the response:
+The `AfterAgent` hook (`hooks/after-agent.js`) validates this contract at runtime. After every agent turn, the hook checks for both `## Task Report` and `## Downstream Context` headings in the response:
 
 - **Missing either heading on first attempt**: The hook blocks the response and returns a retry request specifying which section is absent. The agent must re-produce the complete handoff report.
 - **Missing either heading on retry**: The hook allows the response through to prevent infinite loops, but logs a warning. The orchestrator receives the malformed output and must handle the missing context.

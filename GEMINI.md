@@ -24,10 +24,10 @@ Before running orchestration commands:
    - exported env var
    - workspace `.env` (`$PWD/.env`)
    - extension `.env` (`${MAESTRO_EXTENSION_PATH:-$HOME/.gemini/extensions/maestro}/.env`)
-   - default
+   - undefined (callers apply defaults)
 3. Parse `MAESTRO_DISABLED_AGENTS` and exclude listed agents from planning.
 4. Run workspace preparation:
-   - `./scripts/ensure-workspace.sh <resolved-state-dir>`
+   - `node ./scripts/ensure-workspace.js <resolved-state-dir>`
    - Stop and report if it fails.
 
 ## Gemini CLI Integration Constraints
@@ -36,30 +36,34 @@ Before running orchestration commands:
 - Maestro slash commands are file commands loaded from `commands/maestro/*.toml`; they are expected to resolve as `/maestro:*`.
 - Hook entries must remain `type: "command"` in `hooks/hooks.json` for compatibility with current Gemini CLI hook validation.
 - Extension workflows run only when the extension is linked/enabled and workspace trust allows extension assets.
+- `ask_user` header fields must not exceed 16 characters. Keep headers short (e.g., `Database`, `Auth`, `Approach`). This limit is enforced by Gemini CLI validation on all `ask_user` calls.
 
 ## Settings Reference
 
 | Setting | envVar | Default | Usage |
 | --- | --- | --- | --- |
 | Default Model | `MAESTRO_DEFAULT_MODEL` | inherit | Parallel dispatch model flag |
-| Writer Model | `MAESTRO_WRITER_MODEL` | inherit | Parallel dispatch override for `technical-writer` |
-| Default Temperature | `MAESTRO_DEFAULT_TEMPERATURE` | `0.2` | Delegation prompt metadata override |
-| Max Agent Turns | `MAESTRO_MAX_TURNS` | `25` | Delegation prompt metadata override |
+| Writer Model | `MAESTRO_WRITER_MODEL` | inherit | Parallel dispatch override for `technical_writer` |
+| Temperature | `MAESTRO_DEFAULT_TEMPERATURE` | inherit | Delegation prompt metadata override (agents define own defaults in frontmatter) |
+| Max Agent Turns | `MAESTRO_MAX_TURNS` | inherit | Delegation prompt metadata override (agents define own defaults in frontmatter) |
 | Agent Timeout | `MAESTRO_AGENT_TIMEOUT` | `10` min | Delegation timeout metadata and dispatch timeout |
 | Disabled Agents | `MAESTRO_DISABLED_AGENTS` | none | Exclude agents from assignment |
 | Max Retries | `MAESTRO_MAX_RETRIES` | `2` | Phase retry limit |
 | Auto Archive | `MAESTRO_AUTO_ARCHIVE` | `true` | Auto archive on success |
-| Validation Strictness | `MAESTRO_VALIDATION_STRICTNESS` | `normal` | Validation gating mode |
+| Validation | `MAESTRO_VALIDATION_STRICTNESS` | `normal` | Validation gating mode |
 | State Directory | `MAESTRO_STATE_DIR` | `.gemini` | Session/plans/parallel state root |
 | Max Concurrent | `MAESTRO_MAX_CONCURRENT` | `0` | Parallel concurrency cap |
 | Stagger Delay | `MAESTRO_STAGGER_DELAY` | `5` sec | Launch delay between parallel agents |
-| Extra Gemini Args | `MAESTRO_GEMINI_EXTRA_ARGS` | none | Forwarded to each parallel-dispatched `gemini` process |
+| Extra CLI Args | `MAESTRO_GEMINI_EXTRA_ARGS` | none | Forwarded to each parallel-dispatched `gemini` process |
 | Execution Mode | `MAESTRO_EXECUTION_MODE` | `ask` | Execute phase mode selection (`ask`, `parallel`, `sequential`) |
+
+**Note:** Settings fall into three categories. *Dispatch-backed* settings (`MAESTRO_DEFAULT_MODEL`, `MAESTRO_WRITER_MODEL`, `MAESTRO_AGENT_TIMEOUT`, `MAESTRO_MAX_CONCURRENT`, `MAESTRO_STAGGER_DELAY`, `MAESTRO_GEMINI_EXTRA_ARGS`) are resolved by `dispatch-config-resolver.js` with code-level defaults. *State-resolution* setting (`MAESTRO_STATE_DIR`) is resolved by `read-active-session.js` via `resolveSetting()` and consumed by `session-state.js` with `.gemini` default — it is not part of the dispatch config pipeline. *Orchestrator-prompt-only* settings (`MAESTRO_DEFAULT_TEMPERATURE`, `MAESTRO_MAX_TURNS`, `MAESTRO_MAX_RETRIES`, `MAESTRO_AUTO_ARCHIVE`, `MAESTRO_VALIDATION_STRICTNESS`, `MAESTRO_DISABLED_AGENTS`, `MAESTRO_EXECUTION_MODE`) are consumed from this prompt context and have no code-level consumer.
 
 Additional script-only controls:
 
 - `MAESTRO_CLEANUP_DISPATCH=true`: remove prompt directory after dispatch
 - `MAESTRO_CURRENT_AGENT`: exported per parallel process for hook correlation
+- `MAESTRO_EXTENSION_PATH`: override extension root for setting resolution (defaults to ~/.gemini/extensions/maestro)
 
 ## Four-Phase Workflow
 
@@ -91,7 +95,7 @@ Plan output path handling:
 ### Phase 4: Complete
 
 - Verify deliverables and validation outcomes.
-- If execution changed non-documentation files (source/test/config/scripts), activate `code-review` and run a final `code-reviewer` pass on the changed scope with implementation-plan context.
+- If execution changed non-documentation files (source/test/config/scripts), activate `code-review` and run a final `code_reviewer` pass on the changed scope with implementation-plan context.
 - Treat unresolved `Critical` or `Major` review findings as completion blockers; remediate, re-validate, and re-run the review gate before archival.
 - Archive via `session-management` (respecting `MAESTRO_AUTO_ARCHIVE`).
 - Provide final summary and recommended next steps.
@@ -109,12 +113,12 @@ Record selected mode in session state as `execution_mode`.
 
 ## Parallel Dispatch Contract
 
-Parallel batches are executed by `scripts/parallel-dispatch.sh`.
+Parallel batches are executed by `node scripts/parallel-dispatch.js`.
 
 Workflow:
 
 1. Write full per-agent prompts to `<state_dir>/parallel/<batch-id>/prompts/*.txt`.
-2. Run dispatch script: `./scripts/parallel-dispatch.sh <dispatch-dir>`.
+2. Run dispatch script: `node ./scripts/parallel-dispatch.js <dispatch-dir>`.
 3. Script resolves model/timeout/concurrency/extra args using precedence above.
 4. Script starts one process per prompt:
    - `gemini --approval-mode=yolo --output-format json [model flags] [extra args]`
@@ -137,11 +141,11 @@ Constraints:
 
 When building delegation prompts:
 
-1. Use agent frontmatter defaults from `agents/<name>.md`.
+1. Use agent frontmatter defaults from `agents/<name>.md`. Agent names use **underscores** (e.g., `technical_writer`, `api_designer`), not hyphens.
 2. Apply global overrides (`MAESTRO_DEFAULT_TEMPERATURE`, `MAESTRO_MAX_TURNS`, `MAESTRO_AGENT_TIMEOUT`).
 3. For parallel dispatch only, apply model flags:
    - `MAESTRO_DEFAULT_MODEL`
-   - `MAESTRO_WRITER_MODEL` for `technical-writer`
+   - `MAESTRO_WRITER_MODEL` for `technical_writer`
 4. Inject shared protocols from:
    - `skills/delegation/protocols/agent-base-protocol.md`
    - `skills/delegation/protocols/filesystem-safety-protocol.md`
@@ -166,7 +170,9 @@ Resolve `<state_dir>` from `MAESTRO_STATE_DIR` (default `.gemini`):
 - Archives: `<state_dir>/state/archive/`, `<state_dir>/plans/archive/`
 - Parallel batches: `<state_dir>/parallel/`
 
-`/maestro:status` and `/maestro:resume` read active session through `${MAESTRO_EXTENSION_PATH:-$HOME/.gemini/extensions/maestro}/scripts/read-active-session.sh`.
+Use `read_file` and `write_file` directly on state paths — the project `.geminiignore` makes them accessible to Gemini CLI tools.
+
+`/maestro:status` and `/maestro:resume` use `node ${MAESTRO_EXTENSION_PATH:-$HOME/.gemini/extensions/maestro}/scripts/read-active-session.js` in their TOML shell blocks to inject state before the model's first turn.
 
 ## Skills Reference
 
@@ -180,21 +186,25 @@ Resolve `<state_dir>` from `MAESTRO_STATE_DIR` (default `.gemini`):
 | `code-review` | Standalone review methodology |
 | `validation` | Build/lint/test validation strategy |
 
+## Agent Naming Convention
+
+All agent names use **snake_case** (underscores, not hyphens). When delegating to or referencing an agent, always use the exact name from the roster below. For example: `technical_writer`, not `technical-writer`.
+
 ## Agent Roster
 
 | Agent | Focus | Key Tool Profile |
 | --- | --- | --- |
 | `architect` | System design | Read tools + web search/fetch |
-| `api-designer` | API contracts | Read tools + web search/fetch |
-| `code-reviewer` | Code quality review | Read-only |
+| `api_designer` | API contracts | Read tools + web search/fetch |
+| `code_reviewer` | Code quality review | Read-only |
 | `coder` | Feature implementation | Read/write/shell + todos + skill activation |
-| `data-engineer` | Schema/data/queries | Read/write/shell + todos + web search |
+| `data_engineer` | Schema/data/queries | Read/write/shell + todos + web search |
 | `debugger` | Root cause analysis | Read + shell + todos |
-| `devops-engineer` | CI/CD and infra | Read/write/shell + todos + web search/fetch |
-| `performance-engineer` | Performance profiling | Read + shell + todos + web search/fetch |
+| `devops_engineer` | CI/CD and infra | Read/write/shell + todos + web search/fetch |
+| `performance_engineer` | Performance profiling | Read + shell + todos + web search/fetch |
 | `refactor` | Structural refactoring | Read/write + todos + skill activation |
-| `security-engineer` | Security auditing | Read + shell + todos + web search/fetch |
-| `technical-writer` | Documentation | Read/write + todos + web search |
+| `security_engineer` | Security auditing | Read + shell + todos + web search/fetch |
+| `technical_writer` | Documentation | Read/write + todos + web search |
 | `tester` | Test implementation | Read/write/shell + todos + skill activation + web search |
 
 ## Hooks
@@ -203,8 +213,10 @@ Maestro uses Gemini CLI hooks from `hooks/hooks.json`:
 
 | Hook | Script | Purpose |
 | --- | --- | --- |
-| BeforeAgent | `hooks/before-agent.sh` | Track active agent and inject compact session context |
-| AfterAgent | `hooks/after-agent.sh` | Enforce handoff format (`Task Report` + `Downstream Context`) |
+| SessionStart | `hooks/session-start.js` | Prune stale sessions, initialize hook state when active session exists |
+| BeforeAgent | `hooks/before-agent.js` | Prune stale sessions, track active agent, inject compact session context |
+| AfterAgent | `hooks/after-agent.js` | Enforce handoff format (`Task Report` + `Downstream Context`); skips when no active agent or for `techlead`/`orchestrator` |
+| SessionEnd | `hooks/session-end.js` | Clean up hook state for ended session |
 
 ## Alignment Notes
 

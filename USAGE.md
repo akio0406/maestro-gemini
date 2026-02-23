@@ -21,7 +21,7 @@ Comprehensive guide to installing, configuring, and using the Maestro multi-agen
 
 1. **Gemini CLI**: Maestro is a Gemini CLI extension. Install Gemini CLI from [geminicli.com](https://geminicli.com) before proceeding.
 
-2. **Node.js**: Required for version management scripts. Install Node.js 16 or later from [nodejs.org](https://nodejs.org).
+2. **Node.js**: Required for hooks, scripts, and parallel dispatch infrastructure. Install Node.js 16 or later from [nodejs.org](https://nodejs.org).
 
 ### Enable Experimental Subagents
 
@@ -159,7 +159,7 @@ After each section, you'll be asked to approve or request changes. Once all sect
 
 Maestro generates a detailed implementation plan with:
 - Phases broken down by task domain
-- Agent assignments (coder, tester, devops-engineer, etc.)
+- Agent assignments (coder, tester, devops_engineer, etc.)
 - Dependency graph showing which phases must run sequentially
 - Parallel execution opportunities
 - Validation criteria per phase
@@ -186,7 +186,7 @@ Choose your mode. Maestro will execute the plan phase by phase, delegating work 
 
 ```
 Phase 1: Database Schema Design
-  Agent: data-engineer
+  Agent: data_engineer
   Status: In Progress...
 
 Phase 2: Authentication Middleware
@@ -194,7 +194,7 @@ Phase 2: Authentication Middleware
   Status: In Progress...
 
 Phase 3: REST API Endpoints
-  Agent: api-designer → coder
+  Agent: api_designer → coder
   Status: Pending (blocked by Phase 2)
 ```
 
@@ -221,7 +221,7 @@ Files Changed:
 
 Token Usage:
 - Total: 125,000 tokens (80,000 input, 45,000 output)
-- By Agent: coder (45k), tester (32k), data-engineer (18k)
+- By Agent: coder (45k), tester (32k), data_engineer (18k)
 
 Deviations from Plan: None
 
@@ -254,7 +254,7 @@ Start a full Maestro orchestration for a complex engineering task.
    - **Phase 1**: Design Dialogue — structured requirements gathering
    - **Phase 2**: Team Assembly & Planning — agent selection and task decomposition
    - **Phase 3**: Execution — delegated implementation with progress tracking
-   - **Phase 4**: Completion — final review and archival
+   - **Phase 4**: Completion — final `code_reviewer` quality gate (blocks on unresolved Critical/Major findings), review, and archival
 
 **When to Use**:
 - Complex tasks requiring multiple specialized agents
@@ -347,7 +347,8 @@ Execute an existing implementation plan, skipping design and planning phases.
    - Estimated effort
 4. Asks for confirmation before beginning
 5. Executes phases according to the plan
-6. Archives the session on completion
+6. Runs a final `code_reviewer` quality gate when execution changed non-documentation files (blocks on unresolved Critical/Major findings)
+7. Archives the session on completion
 
 **When to Use**:
 - You have a pre-written implementation plan
@@ -391,7 +392,7 @@ Run a standalone code review on staged changes, last commit, or specified paths.
    - Staged changes (`git diff --staged`)
    - Last commit diff (`git diff HEAD~1`)
 2. Confirms detected scope with you
-3. Delegates to the `code-reviewer` agent
+3. Delegates to the `code_reviewer` agent
 4. Presents findings classified by severity:
    - **Critical**: Security vulnerabilities, data loss risks
    - **Major**: Logic errors, performance issues, broken patterns
@@ -495,7 +496,7 @@ Files Changed:
 
 Token Usage:
 - Total: 45,000 tokens (28,000 input, 17,000 output)
-- By Agent: coder (22k), data-engineer (15k), tester (8k)
+- By Agent: coder (22k), data_engineer (15k), tester (8k)
 
 Errors: None
 ```
@@ -641,7 +642,7 @@ Run a security assessment on the specified scope.
 - `<scope>`: Files, directories, or components to audit (e.g., `src/auth`, `src/api/*.js`, `entire codebase`)
 
 **Behavior**:
-1. Delegates to the `security-engineer` agent with the specified scope
+1. Delegates to the `security_engineer` agent with the specified scope
 2. The security engineer performs:
    - OWASP Top 10 vulnerability review
    - Data flow analysis from input to output
@@ -721,7 +722,7 @@ Run a performance analysis on the specified scope.
 - `<scope>`: Files, directories, or components to analyze (e.g., `src/api/tasks.js`, `database queries`, `entire application`)
 
 **Behavior**:
-1. Delegates to the `performance-engineer` agent with the specified scope
+1. Delegates to the `performance_engineer` agent with the specified scope
 2. The performance engineer follows a systematic methodology:
    - **Baseline**: Establish current performance metrics
    - **Profile**: Identify hotspots using appropriate tools
@@ -805,7 +806,7 @@ Measurement Plan:
 
 This section walks through the Design → Plan → Execute → Complete lifecycle from a user perspective.
 
-> **Skill Activation Prompts**: Each skill activated during orchestration requires a user confirmation dialog in the Gemini CLI. Extension-provided skills are never auto-approved. During a full `/maestro:orchestrate` workflow, expect 3-5 confirmation prompts — one per phase skill activation. To suppress these prompts, configure an auto-approve policy in your Gemini CLI settings.
+> **Skill Activation Prompts**: Each skill activated during orchestration requires a user confirmation dialog in the Gemini CLI. Extension-provided skills are never auto-approved. During a full `/maestro:orchestrate` workflow, expect 5-7 confirmation prompts — one per phase skill activation. To suppress these prompts, configure an auto-approve policy in your Gemini CLI settings.
 
 ```mermaid
 flowchart TD
@@ -884,11 +885,11 @@ flowchart TD
 2. **Agent Assignment**: Each phase is assigned to one or more specialized agents based on task domain:
    - `architect`: System design, component specifications
    - `coder`: Feature implementation
-   - `data-engineer`: Database schema, queries
+   - `data_engineer`: Database schema, queries
    - `tester`: Unit/integration/E2E tests
-   - `devops-engineer`: CI/CD, Docker, infrastructure
-   - `security-engineer`: Authentication, authorization, vulnerability assessment
-   - `technical-writer`: Documentation, API specs
+   - `devops_engineer`: CI/CD, Docker, infrastructure
+   - `security_engineer`: Authentication, authorization, vulnerability assessment
+   - `technical_writer`: Documentation, API specs
 
 3. **Dependency Mapping**: Maestro identifies which phases must run sequentially (blocked by dependencies) and which can run in parallel.
 
@@ -949,14 +950,16 @@ flowchart TD
 
 1. **Final Review**: Maestro verifies all phases are completed and deliverables are accounted for.
 
-2. **Validation**: Maestro runs final validation (build, lint, tests) across all deliverables.
+2. **Code Review Gate**: If execution changed non-documentation files, Maestro runs a final `code_reviewer` quality gate. Completion is blocked on unresolved Critical or Major findings — the orchestrator will remediate, re-validate, and re-review until resolved.
 
-3. **Archival**: If `MAESTRO_AUTO_ARCHIVE` is `true` (default), Maestro automatically archives the session:
+3. **Validation**: Maestro runs final validation (build, lint, tests) across all deliverables.
+
+4. **Archival**: If `MAESTRO_AUTO_ARCHIVE` is `true` (default), Maestro automatically archives the session:
    - Design document → `.gemini/plans/archive/`
    - Implementation plan → `.gemini/plans/archive/`
    - Session state → `.gemini/state/archive/<session-id>.md`
 
-4. **Summary**: Maestro presents a final summary with:
+5. **Summary**: Maestro presents a final summary with:
    - What was delivered
    - Files changed (created, modified, deleted)
    - Token usage by agent
@@ -990,10 +993,13 @@ Maestro tracks all orchestration progress in `.gemini/state/active-session.md` u
 ```
 <your-project>/
 └── .gemini/
-    └── state/
-        ├── active-session.md       # Current orchestration
-        └── archive/                # Completed sessions
-            └── 2026-02-15-task-management-api.md
+    ├── plans/                          # Active design docs and implementation plans
+    │   └── archive/                    # Completed plans
+    ├── state/
+    │   ├── active-session.md           # Current orchestration
+    │   └── archive/                    # Completed sessions
+    │       └── 2026-02-15-task-management-api.md
+    └── parallel/                       # Parallel dispatch artifacts
 ```
 
 **Structure**:
@@ -1013,13 +1019,13 @@ token_usage:
   total_output: 17000
   by_agent:
     coder: { input: 22000, output: 8000 }
-    data-engineer: { input: 15000, output: 6000 }
+    data_engineer: { input: 15000, output: 6000 }
 
 phases:
   - id: 1
     name: "Database Schema Design"
     status: "completed"
-    agents: ["data-engineer"]
+    agents: ["data_engineer"]
     started: "2026-02-15T10:35:00Z"
     completed: "2026-02-15T10:45:00Z"
     files_created: ["src/db/schema.sql"]
@@ -1233,9 +1239,9 @@ Maestro works out of the box with sensible defaults. To customize behavior, set 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MAESTRO_DEFAULT_MODEL` | _(inherit from main session)_ | Model override for agents dispatched via parallel execution (has no effect on sequential delegation) |
-| `MAESTRO_WRITER_MODEL` | _(inherit from main session)_ | Model override for the technical-writer agent in parallel execution (has no effect on sequential delegation) |
-| `MAESTRO_DEFAULT_TEMPERATURE` | `0.2` | Temperature for all agents (0.0-1.0) |
-| `MAESTRO_MAX_TURNS` | `25` | Maximum turns per subagent execution |
+| `MAESTRO_WRITER_MODEL` | _(inherit from main session)_ | Model override for the technical_writer agent in parallel execution (has no effect on sequential delegation) |
+| `MAESTRO_DEFAULT_TEMPERATURE` | _(inherit)_ | Temperature override for delegation prompts (agents define own defaults in frontmatter) |
+| `MAESTRO_MAX_TURNS` | _(inherit)_ | Max turns override per agent (agents define own defaults in frontmatter) |
 | `MAESTRO_AGENT_TIMEOUT` | `10` | Timeout in minutes per subagent |
 | `MAESTRO_DISABLED_AGENTS` | _(none)_ | Comma-separated list of agents to exclude from planning |
 | `MAESTRO_MAX_RETRIES` | `2` | Retry attempts per phase before user escalation |
@@ -1272,7 +1278,7 @@ export MAESTRO_AUTO_ARCHIVE=false
 
 **Exclude specific agents**:
 ```bash
-export MAESTRO_DISABLED_AGENTS=devops-engineer,performance-engineer
+export MAESTRO_DISABLED_AGENTS=devops_engineer,performance_engineer
 ```
 
 **Use parallel mode by default**:
@@ -1292,13 +1298,13 @@ Prefer `--policy` over deprecated `--allowed-tools`.
 export MAESTRO_STATE_DIR=.maestro
 ```
 
-### Validation Strictness
+### Validation
 
 Controls how strictly Maestro enforces validation after each phase:
 
-- **strict**: All build/lint/test failures block phase completion
-- **normal** (default): Build failures block, lint/test failures warn but allow continuation
-- **lenient**: Validation failures are logged but do not block
+- **strict**: All failures and warnings block phase completion (lint warnings, deprecation notices, coverage decreases all block)
+- **normal** (default): Build/lint/test errors block phase completion. Lint warnings, deprecation notices, and coverage decreases are recorded but do not block.
+- **lenient**: All failures and warnings are recorded but do not block phase completion. The user reviews the accumulated report at completion.
 
 Set via:
 ```bash
@@ -1367,25 +1373,25 @@ flowchart TD
 flowchart LR
     subgraph ReadOnly[Read-Only]
         A1[architect]
-        A2[api-designer]
-        A3[code-reviewer]
+        A2[api_designer]
+        A3[code_reviewer]
     end
 
     subgraph ReadShell[Read + Shell]
         B1[debugger]
-        B2[performance-engineer]
-        B3[security-engineer]
+        B2[performance_engineer]
+        B3[security_engineer]
     end
 
     subgraph ReadWrite[Read + Write]
         C1[refactor]
-        C2[technical-writer]
+        C2[technical_writer]
     end
 
     subgraph Full[Full Access]
         D1[coder]
-        D2[data-engineer]
-        D3[devops-engineer]
+        D2[data_engineer]
+        D3[devops_engineer]
         D4[tester]
     end
 
@@ -1395,13 +1401,13 @@ flowchart LR
     Full -.->|Implementation| Output4[Complete Features]
 ```
 
-- **Read-only** (architect, api-designer, code-reviewer): Analysis and recommendations only. Cannot modify files or run commands.
-- **Read + Shell** (debugger, performance-engineer, security-engineer): Investigation tools. Can run commands but not modify files.
-- **Read + Write** (refactor, technical-writer): Can modify files but not run shell commands.
-- **Full Access** (coder, data-engineer, devops-engineer, tester): Complete implementation capabilities.
+- **Read-only** (architect, api_designer, code_reviewer): Analysis and recommendations only. Cannot modify files or run commands.
+- **Read + Shell** (debugger, performance_engineer, security_engineer): Investigation tools. Can run commands but not modify files.
+- **Read + Write** (refactor, technical_writer): Can modify files but not run shell commands.
+- **Full Access** (coder, data_engineer, devops_engineer, tester): Complete implementation capabilities.
 
 **Why This Matters**:
-- Delegating to `code-reviewer` means you get analysis, not fixes
+- Delegating to `code_reviewer` means you get analysis, not fixes
 - Delegating to `coder` means you get working code
 - Delegating to `debugger` means you get root cause analysis, not the fix itself (though the debugger can run tests and examine logs)
 
@@ -1504,24 +1510,20 @@ Check for syntax errors in the YAML frontmatter (unmatched quotes, invalid inden
 **Symptom**: Parallel execution fails with "script not found" or "all agents failed".
 
 **Diagnosis**:
-1. Verify the dispatch script exists and is executable:
+1. Verify the dispatch script exists:
    ```bash
-   ls -l scripts/parallel-dispatch.sh
+   ls -l scripts/parallel-dispatch.js
    ```
-   Should show `-rwxr-xr-x` (executable).
 
-2. Check that `gemini` CLI is on PATH:
+2. Check that `gemini` CLI and Node.js are on PATH:
    ```bash
-   which gemini
+   which gemini && which node
    ```
 
 **Solution**:
-1. Make script executable:
-   ```bash
-   chmod +x scripts/parallel-dispatch.sh
-   ```
+1. Verify `scripts/parallel-dispatch.js` exists in the extension directory
 
-2. Add `gemini` to PATH or use absolute path in script
+2. Ensure Node.js is available on PATH (provided by Gemini CLI)
 
 3. Fall back to sequential mode:
    ```bash

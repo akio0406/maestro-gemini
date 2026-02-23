@@ -1,6 +1,6 @@
 # State Management and Scripts
 
-This document describes Maestro's persisted session state model and shell-script runtime contract.
+This document describes Maestro's persisted session state model and script runtime contract.
 
 ## State Directory Layout
 
@@ -21,7 +21,7 @@ State is project-local under `MAESTRO_STATE_DIR` (default `.gemini`):
       results/
 ```
 
-`<state_dir>` can be relative (resolved from project root) or absolute.
+`<state_dir>` can be relative or absolute for session path resolution. The `resolveActiveSessionPath` function resolves relative paths from the `cwd` parameter provided by its caller (`read-active-session.js` passes the git repository root via `resolveProjectRoot()`). Note that `ensureWorkspace`, `readState`, and `writeState` enforce relative paths only and reject absolute values.
 
 ## Resolution Precedence
 
@@ -32,26 +32,28 @@ For script-backed settings:
 3. Extension `.env` (`${MAESTRO_EXTENSION_PATH:-$HOME/.gemini/extensions/maestro}/.env`)
 4. Default
 
-`read-active-session.sh` and `parallel-dispatch.sh` both implement this precedence.
+`read-active-session.js` resolves `MAESTRO_STATE_DIR` through this precedence, while `parallel-dispatch.js` resolves six dispatch settings (`MAESTRO_DEFAULT_MODEL`, `MAESTRO_WRITER_MODEL`, `MAESTRO_AGENT_TIMEOUT`, `MAESTRO_MAX_CONCURRENT`, `MAESTRO_STAGGER_DELAY`, `MAESTRO_GEMINI_EXTRA_ARGS`) through `dispatch-config-resolver.js` and additionally resolves `MAESTRO_CLEANUP_DISPATCH` directly via `resolveSetting()`. They resolve project root differently: `read-active-session.js` uses the git repository root (via `resolveProjectRoot()`, falling back to `process.cwd()` outside git repos), while `parallel-dispatch.js` uses the current working directory (`process.cwd()`).
 
-## Why Scripts Are Required for State Reads
+## State File Access
 
-`read_file` follows ignore rules; `.gemini/` is commonly ignored. Maestro therefore uses shell helpers for state reads under `<state_dir>`:
+The project `.geminiignore` negates the `.gitignore` exclusion of `.gemini/`, so `read_file` and `write_file` both work on state paths directly.
 
-- `scripts/read-state.sh <relative-path>`
-- `scripts/read-active-session.sh`
+The Node.js helper scripts remain available and are used by TOML shell blocks in `/maestro:status` and `/maestro:resume` to inject state before the model's first turn:
 
-State writes are typically done with `write_file`. For shell-piped writes, use `scripts/write-state.sh` (atomic temp-file + `mv`).
+- `node scripts/read-state.js <relative-path>`
+- `node scripts/read-active-session.js`
+
+For shell-piped writes, use `node scripts/write-state.js` (atomic temp-file + rename).
 
 ## Script Reference
 
 | Script | Responsibility | Key Guarantees |
 | --- | --- | --- |
-| `scripts/ensure-workspace.sh` | Prepare `<state_dir>` tree | Rejects absolute/path-traversal/symlink state dir; creates required directories and verifies writability |
-| `scripts/read-state.sh` | Safe state-file read | Relative-path only, traversal rejection, explicit error on missing file |
-| `scripts/write-state.sh` | Safe atomic state write | Relative-path only, traversal rejection, atomic move to destination |
-| `scripts/read-active-session.sh` | Resolve and read active session | Uses precedence chain and returns `No active session` fallback |
-| `scripts/parallel-dispatch.sh` | Run agent batch concurrently | Validates agent names, applies env settings, timeout/concurrency control, writes structured result artifacts |
+| `scripts/ensure-workspace.js` | Prepare `<state_dir>` tree | Rejects absolute/path-traversal/symlink state dir; creates required directories and verifies writability |
+| `scripts/read-state.js` | Safe state-file read | Relative-path only, traversal rejection, explicit error on missing file |
+| `scripts/write-state.js` | Safe atomic state write | Relative-path only, traversal rejection, atomic move to destination |
+| `scripts/read-active-session.js` | Resolve and read active session | Uses precedence chain and returns `No active session` fallback |
+| `scripts/parallel-dispatch.js` | Run agent batch concurrently | Validates agent names, applies env settings, timeout/concurrency control, writes structured result artifacts |
 | `scripts/sync-version.js` | Keep extension version in sync | Copies `package.json` version into `gemini-extension.json` |
 
 ## Parallel Dispatch Runtime Contract
@@ -60,7 +62,7 @@ State writes are typically done with `write_file`. For shell-piped writes, use `
 
 Required:
 
-- `<dispatch-dir>/prompts/*.txt`
+- `<dispatch-dir>/prompts/*` (any non-hidden files)
 
 Optional settings:
 
@@ -77,11 +79,14 @@ Optional settings:
 For each prompt file:
 
 1. Validate agent name against `agents/*.md`
-2. Build prompt payload by prepending a project-root safety preamble
-3. Stream prompt payload to `gemini` over stdin
-4. Execute:
+2. Validate prompt file size (1 MB limit) and verify non-empty content
+3. Inject `MAESTRO_CURRENT_AGENT` env var with the normalized agent name into the spawned process environment
+4. Select model: use `MAESTRO_WRITER_MODEL` for the `technical_writer` agent when set, otherwise fall back to `MAESTRO_DEFAULT_MODEL`
+5. Build prompt payload by prepending a project-root safety preamble
+6. Stream prompt payload to `gemini` over stdin
+7. Execute:
    - `gemini --approval-mode=yolo --output-format json [model flags] [extra args]`
-5. Persist artifacts:
+8. Persist artifacts:
    - `<agent>.json`
    - `<agent>.exit`
    - `<agent>.log`
@@ -91,7 +96,7 @@ After all processes:
 - Write `summary.json`
 - Exit with failure count
 - Preserve real non-zero agent exit codes in `.exit` files and `summary.json`
-- Normalize timeout to exit code `124`
+- Normalize timeout to exit code `124`; use `255` for spawn/dispatch errors
 
 ### Deprecated Flag Guard
 
@@ -103,16 +108,18 @@ Configured in `hooks/hooks.json`:
 
 | Event | Script | Behavior |
 | --- | --- | --- |
-| `BeforeAgent` | `hooks/before-agent.sh` | Tracks active agent, injects compact phase/status context from active session |
-| `AfterAgent` | `hooks/after-agent.sh` | Validates delegated response contains `Task Report` and `Downstream Context`; requests one retry if malformed |
+| `SessionStart` | `hooks/session-start.js` | Prunes stale hook state, initializes session directory when an active session exists |
+| `BeforeAgent` | `hooks/before-agent.js` | Prunes stale hook state, tracks active agent, injects compact phase/status context from active session |
+| `AfterAgent` | `hooks/after-agent.js` | Validates delegated response contains `Task Report` and `Downstream Context`; requests one retry if malformed |
+| `SessionEnd` | `hooks/session-end.js` | Removes session hook state directory |
 
-Shared hook helpers live in `hooks/lib/common.sh`.
+Shared hook helpers live in `src/lib/` modules (`hooks/hook-state`, `hooks/hook-response`, `hooks/hook-facade`, `state/session-state`, `core/logger`, `core/stdin-reader`, `state/session-id-validator`, `core/agent-registry`).
 
 Gemini CLI hook-schema compatibility notes:
 
 - Hook entries must use `type: "command"` with a non-empty `command` string.
 - Hook definitions may include `matcher`, `sequential`, `env`, and `timeout`.
-- Maestro intentionally subscribes only to BeforeAgent and AfterAgent by default, even though Gemini CLI exposes additional hook events.
+- Maestro subscribes to SessionStart, BeforeAgent, AfterAgent, and SessionEnd by default. Gemini CLI exposes additional hook events that are not currently used.
 
 ## Session State Lifecycle
 
@@ -125,15 +132,17 @@ Lifecycle stages:
 
 1. Create `state/active-session.md`
 2. Update per-phase status, files changed, downstream context, errors, token usage
-3. Read via `/maestro:status` and `/maestro:resume` using `read-active-session.sh`
+3. Read via `/maestro:status` and `/maestro:resume` using `read-active-session.js`
 4. Archive to `state/archive/` and `plans/archive/`
 
 ## Test Coverage
 
-Integration coverage runs via `tests/run-all.sh` and currently verifies:
+Integration coverage runs via `node tests/run-all.js` and currently verifies:
 
 - all hook scripts
 - parallel dispatch arg forwarding and stdin prompt payload behavior
+- concurrency gate enforcement
+- numeric setting validation
 - dispatch config fallback precedence
 - dispatch exit-code propagation
 - active-session resolution behavior

@@ -98,14 +98,14 @@ You have access to `activate_skill` for loading methodology modules when needed:
 
 ## Downstream Consumers
 
-- **code-reviewer**: Needs tests readable as behavioral specifications — test names and assertions should document expected behavior clearly enough to serve as living documentation
+- **code_reviewer**: Needs tests readable as behavioral specifications — test names and assertions should document expected behavior clearly enough to serve as living documentation
 - **coder**: Needs clear test failure messages that indicate what behavior was expected vs what actually occurred — assertion messages should make debugging unnecessary
 
 ## Output Contract
 
 When completing your task, conclude with a **Handoff Report** containing two parts:
 
-### Part 1 — Task Report
+## Task Report
 - **Status**: success | partial | failure
 - **Objective Achieved**: [One sentence restating the task objective and whether it was fully met]
 - **Files Created**: [Absolute paths with one-line purpose each, or "none"]
@@ -117,7 +117,7 @@ When completing your task, conclude with a **Handoff Report** containing two par
 - **Errors**: [List with type, description, and resolution status, or "none"]
 - **Scope Deviations**: [Anything asked but not completed, or additional necessary work discovered but not performed, or "none"]
 
-### Part 2 — Downstream Context
+## Downstream Context
 - **Key Interfaces Introduced**: [Type signatures and file locations, or "none"]
 - **Patterns Established**: [New patterns that downstream agents must follow for consistency, or "none"]
 - **Integration Points**: [Where and how downstream work should connect to this output, or "none"]

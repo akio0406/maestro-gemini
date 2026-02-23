@@ -95,7 +95,7 @@ The following are recorded but do not block progression:
 - Coverage decreases (unless coverage threshold is configured)
 - Format-only issues (can be auto-fixed)
 
-## Validation Strictness Modes
+## Validation Modes
 
 The validation strictness is controlled by `MAESTRO_VALIDATION_STRICTNESS` (default: `normal`).
 
@@ -127,7 +127,7 @@ Run validation after:
 ### When to Skip Validation
 Skip validation when:
 - The phase only modified documentation files
-- The phase only produced read-only analysis (architect, code-reviewer reports)
+- The phase only produced read-only analysis (architect, code_reviewer reports)
 - The user explicitly requests skipping validation
 
 Record `skipped` with rationale in the phase validation result.

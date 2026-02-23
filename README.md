@@ -1,6 +1,6 @@
 # Maestro
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/josstei/maestro-gemini/releases)
+[![Version](https://img.shields.io/badge/version-1.2.1-blue)](https://github.com/josstei/maestro-gemini/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-extension-orange)](https://geminicli.com)
 
@@ -115,7 +115,7 @@ Maestro will:
 
 | Command | Purpose |
 |---------|---------|
-| [`/maestro:orchestrate`](#maestroOrchestrate) | Full orchestration workflow (design → plan → execute → complete) |
+| [`/maestro:orchestrate`](#maestroorchestrate) | Full orchestration workflow (design → plan → execute → complete) |
 | [`/maestro:execute`](#maestroexecute) | Execute an existing implementation plan |
 | [`/maestro:resume`](#maestroresume) | Resume an interrupted session |
 | [`/maestro:review`](#maestroreview) | Standalone code review |
@@ -162,7 +162,7 @@ Resumes an interrupted orchestration session.
 **Usage**: `/maestro:resume`
 
 **Behavior**:
-1. Reads active session state through `scripts/read-active-session.sh` (default path: `.gemini/state/active-session.md`)
+1. Reads active session state through `scripts/read-active-session.js` (default path: `.gemini/state/active-session.md`)
 2. Parses session metadata and phase statuses
 3. Presents a status summary with completed/pending/failed phases
 4. If errors exist from the previous run, presents them and asks for guidance
@@ -179,7 +179,7 @@ Runs a standalone code review on staged changes, last commit, or specified paths
 **Behavior**:
 1. Auto-detects review scope: user-specified paths > staged changes > last commit diff
 2. Confirms detected scope with the user
-3. Delegates to the code-reviewer agent
+3. Delegates to the code_reviewer agent
 4. Presents findings classified by severity (Critical, Major, Minor, Suggestion)
 5. Every finding references a specific file and line number
 
@@ -201,7 +201,7 @@ Runs a security assessment on the specified scope.
 **Usage**: `/maestro:security-audit <scope>`
 
 **Behavior**:
-1. Delegates to the security-engineer agent
+1. Delegates to the security_engineer agent
 2. Reviews for OWASP Top 10 vulnerabilities, traces data flow, audits authentication/authorization
 3. Presents findings with CVSS-aligned severity, proof of concept, and remediation steps
 
@@ -212,7 +212,7 @@ Runs a performance analysis on the specified scope.
 **Usage**: `/maestro:perf-check <scope>`
 
 **Behavior**:
-1. Delegates to the performance-engineer agent
+1. Delegates to the performance_engineer agent
 2. Establishes baseline, profiles hotspots, analyzes bottlenecks
 3. Presents optimization recommendations ranked by impact-to-effort ratio
 
@@ -249,10 +249,10 @@ Maestro works out of the box with sensible defaults. To customize behavior, set 
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `MAESTRO_DEFAULT_MODEL` | _(inherit)_ | Model used by all agents unless individually overridden |
-| `MAESTRO_WRITER_MODEL` | _(inherit)_ | Model for technical-writer agent |
-| `MAESTRO_DEFAULT_TEMPERATURE` | `0.2` | Temperature for all agents (0.0-1.0) |
-| `MAESTRO_MAX_TURNS` | `25` | Maximum turns per subagent execution |
+| `MAESTRO_DEFAULT_MODEL` | _(inherit)_ | Model override for parallel-dispatched agents (sequential delegation inherits main session model) |
+| `MAESTRO_WRITER_MODEL` | _(inherit)_ | Model override for technical_writer agent in parallel dispatch only |
+| `MAESTRO_DEFAULT_TEMPERATURE` | _(inherit)_ | Temperature override for delegation prompts (agents define own defaults in frontmatter) |
+| `MAESTRO_MAX_TURNS` | _(inherit)_ | Max turns override per agent (agents define own defaults in frontmatter) |
 | `MAESTRO_AGENT_TIMEOUT` | `10` | Timeout in minutes per subagent |
 | `MAESTRO_DISABLED_AGENTS` | _(none)_ | Comma-separated list of agents to exclude |
 | `MAESTRO_MAX_RETRIES` | `2` | Retry attempts per phase before escalation |
@@ -273,7 +273,7 @@ You can configure extension-scoped settings interactively with `gemini extension
 | Role | Model | Purpose |
 |------|-------|---------|
 | Inherited | _(main session model)_ | All agents inherit the model from the main Gemini CLI session |
-| Override | `MAESTRO_DEFAULT_MODEL` | Set to a specific model (e.g., `gemini-2.5-pro`) to override all agents |
+| Override | `MAESTRO_DEFAULT_MODEL` | Set to a specific model (e.g., `gemini-2.5-pro`) to override parallel-dispatched agents |
 
 All agents omit the `model` field by default, inheriting the main session's model selection. Override via `MAESTRO_DEFAULT_MODEL` or `MAESTRO_WRITER_MODEL` environment variables. These overrides apply to parallel dispatch only — sequentially delegated subagents always inherit the main session model.
 
@@ -283,8 +283,10 @@ Maestro uses Gemini CLI's hooks system for lifecycle middleware. Tool permission
 
 | Hook | Purpose |
 |------|---------|
+| SessionStart | Initialize hook state, prune stale sessions |
 | BeforeAgent | Track active agent identity, inject session context |
 | AfterAgent | Validate handoff report format, clear agent tracking |
+| SessionEnd | Clean up hook state for ended session |
 
 Hook handlers are in `hooks/` and registered via `hooks/hooks.json`.
 
@@ -301,8 +303,8 @@ graph TB
     TL -->|Phase 3| EX[Execution]
     TL -->|Phase 4| CO[Completion]
 
-    EX -->|Sequential| DA[Subagent Tools]
-    EX -->|Parallel| PD[parallel-dispatch.sh]
+    EX -->|Sequential| DA[Gemini CLI Delegation]
+    EX -->|Parallel| PD[parallel-dispatch.js]
 
     DA --> Agents
     PD --> Agents
@@ -330,8 +332,8 @@ Maestro is built from seven layers, each with a distinct responsibility:
 | **Commands** | `commands/` | TOML | CLI command definitions mapping user commands to prompts/skills |
 | **Agents** | `agents/` | Markdown + YAML frontmatter | 12 subagent persona definitions with tool permissions and model config |
 | **Skills** | `skills/` | Markdown (`SKILL.md` per directory) | Reusable methodology modules with embedded protocols |
-| **Scripts** | `scripts/` | Shell | Execution infrastructure (parallel dispatch) |
-| **Hooks** | `hooks/` | JSON + Shell | Lifecycle middleware for active-agent tracking and handoff validation |
+| **Scripts** | `scripts/` | Node.js | Execution infrastructure (workspace setup, state management, parallel dispatch, version sync) |
+| **Hooks** | `hooks/` | JSON + Node.js | Lifecycle middleware for active-agent tracking and handoff validation |
 | **Templates** | `templates/` | Markdown | Structure templates for generated artifacts (designs, plans, sessions) |
 
 ### Workflow Phases
@@ -363,7 +365,7 @@ With plan approval, the TechLead:
 #### Phase 4: Completion
 
 After all phases complete:
-- Final review of all deliverables
+- Final `code_reviewer` quality gate — blocks completion on unresolved Critical/Major findings
 - Session state marked as completed
 - Plans and state files archived to `archive/` subdirectories
 - Summary delivered with files changed, token usage, and next steps
@@ -374,27 +376,31 @@ After all phases complete:
 
 Maestro coordinates 12 specialized subagents:
 
-| Agent | Specialization | Tools | Model |
-|-------|---------------|-------|-------|
-| architect | System design, technology selection, component design | read, glob, search, web search/fetch | inherit |
-| api-designer | REST/GraphQL endpoint design, API contracts | read, glob, search, web search/fetch | inherit |
-| coder | Feature implementation, clean code, SOLID principles | read, glob, search, write, replace, shell | inherit |
-| code-reviewer | Code quality review, best practices, security | read, glob, search | inherit |
-| data-engineer | Schema design, query optimization, ETL pipelines | read, glob, search, write, replace, shell, web search | inherit |
-| debugger | Root cause analysis, log analysis, execution tracing | read, glob, search, shell | inherit |
-| devops-engineer | CI/CD pipelines, containerization, infrastructure | read, glob, search, write, replace, shell, web search/fetch | inherit |
-| performance-engineer | Profiling, bottleneck identification, optimization | read, glob, search, shell, web search/fetch | inherit |
-| refactor | Code modernization, technical debt, design patterns | read, glob, search, write, replace | inherit |
-| security-engineer | Vulnerability assessment, OWASP, threat modeling | read, glob, search, shell, web search/fetch | inherit |
-| tester | Unit/integration/E2E tests, TDD, coverage analysis | read, glob, search, write, replace, shell, web search | inherit |
-| technical-writer | API docs, READMEs, architecture documentation | read, glob, search, write, replace, web search | inherit |
+All agents share a baseline tool set: `read_file`, `list_directory`, `glob`, `grep_search`, `read_many_files`, `ask_user`. The table below shows additional tools granted beyond that baseline.
+
+| Agent | Specialization | Additional Tools | Model |
+|-------|---------------|-----------------|-------|
+| architect | System design, technology selection, component design | web search/fetch | inherit |
+| api_designer | REST/GraphQL endpoint design, API contracts | web search/fetch | inherit |
+| coder | Feature implementation, clean code, SOLID principles | write, replace, shell, todos, skills | inherit |
+| code_reviewer | Code quality review, best practices, security | _(baseline only)_ | inherit |
+| data_engineer | Schema design, query optimization, ETL pipelines | write, replace, shell, todos, web search | inherit |
+| debugger | Root cause analysis, log analysis, execution tracing | shell, todos | inherit |
+| devops_engineer | CI/CD pipelines, containerization, infrastructure | write, replace, shell, todos, web search/fetch | inherit |
+| performance_engineer | Profiling, bottleneck identification, optimization | shell, todos, web search/fetch | inherit |
+| refactor | Code modernization, technical debt, design patterns | write, replace, todos, skills | inherit |
+| security_engineer | Vulnerability assessment, OWASP, threat modeling | shell, todos, web search/fetch | inherit |
+| tester | Unit/integration/E2E tests, TDD, coverage analysis | write, replace, shell, todos, skills, web search | inherit |
+| technical_writer | API docs, READMEs, architecture documentation | write, replace, todos, web search | inherit |
 
 ### Tool Access Philosophy
 
-- **Read-only agents** (architect, api-designer, code-reviewer): Produce analysis and recommendations
-- **Read + Shell agents** (debugger, performance-engineer, security-engineer): Investigate without modifying files
-- **Read + Write agents** (refactor, technical-writer): Modify code/docs without shell access
-- **Full access agents** (coder, data-engineer, devops-engineer, tester): Complete implementation capabilities
+All agents can ask the user clarifying questions via `ask_user` (not available during parallel dispatch where agents run non-interactively).
+
+- **Read-only agents** (architect, api_designer, code_reviewer): Produce analysis and recommendations
+- **Read + Shell agents** (debugger, performance_engineer, security_engineer): Investigate without modifying files
+- **Read + Write agents** (refactor, technical_writer): Modify code/docs without shell access
+- **Full access agents** (coder, data_engineer, devops_engineer, tester): Complete implementation capabilities
 
 ## Skills
 
@@ -406,21 +412,21 @@ Maestro uses skills to encapsulate detailed methodologies that are activated on 
 | `implementation-planning` | Phase decomposition, agent assignment, and plan generation | `/maestro:orchestrate` (Phase 2) |
 | `execution` | Phase execution protocols, error handling, and completion workflows | `/maestro:orchestrate` (Phase 3), `/maestro:execute`, `/maestro:resume` |
 | `delegation` | Subagent prompt construction, scope boundaries, and parallel delegation | Any phase involving subagent delegation |
-| `session-management` | Session creation, state updates, resume protocol, and archival | `/maestro:orchestrate`, `/maestro:resume`, `/maestro:archive`, `/maestro:status` |
+| `session-management` | Session creation, state updates, resume protocol, and archival | `/maestro:orchestrate`, `/maestro:resume`, `/maestro:archive` |
 | `code-review` | Scope detection, severity classification, and structured review output | `/maestro:review` |
 | `validation` | Build/lint/test pipeline, project type detection, and result interpretation | Post-phase validation during execution |
 
 ## Parallel Execution
 
-Maestro uses shell-based parallel dispatch, enabling independent implementation phases to run concurrently instead of sequentially.
+Maestro uses Node.js-based parallel dispatch, enabling independent implementation phases to run concurrently instead of sequentially.
 
 ### How It Works
 
-The TechLead orchestrator uses `scripts/parallel-dispatch.sh` to spawn concurrent Gemini CLI processes that execute independently. This bypasses the sequential subagent tool invocation pattern, which processes one delegation at a time.
+The TechLead orchestrator uses `scripts/parallel-dispatch.js` to spawn concurrent Gemini CLI processes that execute independently. This bypasses the sequential subagent tool invocation pattern, which processes one delegation at a time.
 
 **Dispatch flow:**
 1. The orchestrator writes self-contained delegation prompts to a dispatch directory
-2. Invokes `parallel-dispatch.sh` via shell
+2. Invokes `parallel-dispatch.js` via shell
 3. The script spawns one `gemini --approval-mode=yolo --output-format json` process per prompt file, streaming prompt content over stdin
 4. All agents execute concurrently as independent OS processes
 5. Results are collected with exit codes, logs, and structured JSON output
@@ -463,6 +469,7 @@ Maestro creates the following directories in your project:
 ```
 <your-project>/
 └── .gemini/
+    ├── parallel/                       # Parallel dispatch batches
     ├── plans/                          # Active design docs and implementation plans
     │   ├── archive/                    # Completed plans
     │   ├── YYYY-MM-DD-<topic>-design.md
@@ -488,6 +495,7 @@ All state files use YAML frontmatter for machine-readable metadata and Markdown 
 - **[Agent System](docs/architecture/agent-system.md)** — Agent definitions, tool permissions, model assignment, and delegation
 - **[Skills & Commands](docs/architecture/skills-and-commands.md)** — Skill activation, command definitions, and protocol contracts
 - **[State Management & Scripts](docs/architecture/state-management-and-scripts.md)** — Session state, parallel dispatch, and execution infrastructure
+- **[Comprehensive Map](docs/architecture/comprehensive-map.md)** — High-level architectural map connecting all components
 
 ## Troubleshooting
 
@@ -529,8 +537,8 @@ All state files use YAML frontmatter for machine-readable metadata and Markdown 
 - Review `summary.json` for per-agent status and exit codes
 
 **Parallel dispatch script not found:**
-- Verify `scripts/parallel-dispatch.sh` exists and is executable
-- Run `chmod +x scripts/parallel-dispatch.sh` if permissions are missing
+- Verify `scripts/parallel-dispatch.js` exists in the extension directory
+- Ensure Node.js is available on PATH (provided by Gemini CLI)
 
 ## Contributing
 
@@ -541,7 +549,7 @@ All state files use YAML frontmatter for machine-readable metadata and Markdown 
 5. Verify commands work in Gemini CLI
 6. Submit a pull request
 
-Run the hooks integration tests with `bash tests/run-all.sh`. All other changes are validated manually via Gemini CLI.
+Run the test suite with `node tests/run-all.js`. All other changes are validated manually via Gemini CLI.
 
 ## License
 
